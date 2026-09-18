@@ -146,7 +146,7 @@ those packages should call into this one, not the reverse.
 | Task A (fix tests) | Nothing — start immediately | — | — |
 | Task A's "run the live suite once" step | AI/Gateway's Task A (`02_AI_GATEWAY_G7.md` §2) standing up a reachable `deploy/g6` topology | AI/Gateway team | You can finish the code-side fix without this, but Task A's DoD item 3 (a real run) stays open until they deliver it — say so honestly in your report rather than claiming it's done. |
 | Task B implementation (not design) | AI/Gateway's Task B backend/credential-model choice (`02_AI_GATEWAY_G7.md` §3) | AI/Gateway team | Building a credential mechanism against a hypothetical backend risks having to redo it once the real backend's actual requirements (API key vs OAuth vs scoped PAT) are known. Do the design/interface work now; hold the concrete implementation for their input. |
-| Task C's response-shape freeze | Frontend's proposed contract draft (`03_FRONTEND_G7.md` §2) | Frontend team | You can implement Task C's endpoints against your own best guess, but do not mark the contract "frozen" until Frontend has reviewed it — repeating the exact "built ahead of an agreed contract" mistake that produced the admin-ui consistency gap this checkpoint is partly cleaning up. |
+| Task C's response-shape freeze | Frontend's proposed contract draft (`03_FRONTEND_G7.md` §2) | Frontend team | You can implement Task C's endpoints against your own best guess, but do not mark the contract "frozen" until Frontend has reviewed it — repeating the exact "built ahead of an agreed contract" mistake that produced the admin-ui consistency gap (a now-removed app; see O-009) this checkpoint was partly cleaning up. |
 
 **If you get blocked for real** (not just "waiting is mildly inconvenient"): report it per
 `/WORKFLOW.md`'s DONE/CONTRACT/BLOCKED/RISK/NEXT format, and keep working on whichever of Task A/B/C
@@ -218,7 +218,7 @@ go test ./...        # every package must report ok
 - Diff review: does every changed file trace back to Task A, B, or C above? If you found something
   else wrong while in there, record it in `docs/DECISIONS/OPEN_DECISIONS.md` or as a note in your
   handoff report — do not fix it silently in the same PR (`CLAUDE.md` scope discipline).
-- Commit message describes what changed and why; do not touch `admin-ui/`, `frontend/`, or
+- Commit message describes what changed and why; do not touch `frontend/app/`, `frontend/`, or
   `gateway/` config beyond what Task C's contract review genuinely requires.
 
 ## 7. Deliverables
@@ -233,6 +233,6 @@ go test ./...        # every package must report ok
 
 - Do not resolve O-004 (MCP revision support) as part of this ticket.
 - Do not add a tool-classification write path (§5, Task C non-goal).
-- Do not modify `admin-ui/` or `gateway/` configuration yourself — hand contract questions to the
+- Do not modify `frontend/app/` or `gateway/` configuration yourself — hand contract questions to the
   relevant team.
 - Do not reopen or re-verdict G6's `CLOSURE_SUMMARY.md` — addendum only.

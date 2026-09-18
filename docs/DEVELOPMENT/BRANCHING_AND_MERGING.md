@@ -72,9 +72,10 @@ go test ./...
 docker compose -f deploy/g6/docker-compose.yml config -q
 
 # Frontend
-cd admin-ui
+cd frontend/app
 npm run typecheck
 npm run build
+npm test
 ```
 
 ### 3. Ready for review

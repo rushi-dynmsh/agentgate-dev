@@ -20,12 +20,18 @@ This file states only what is true *right now*. It is rewritten in place, not ap
 - **G4 — Governance Workflow Integration: PASS / CLOSED / FROZEN** (2026-09-14). Mutation audit events (`internal/auditevents`), governance-to-decision integration service (`internal/governanceintegration`, active-vs-candidate dry-run compare), `POST .../policies/{version}/dryrun` REST endpoint, frontend dry-run models/client/views, `g4integration` QA suite (8 DoD invariants), and `deploy/g4` E2E compose topology. Formally approved by Lead Architect 2026-09-14.
 - **G5 — Durable Audit Boundary: PASS / CLOSED / FROZEN** (2026-09-14). Append-only `audit_events` persistence in PostgreSQL (`internal/audit`), tamper-evident SHA-256 row chaining (`prev_hash` + `row_hash`), independent out-of-process `ChainVerifier`, pre-persistence argument redaction (`redact.go`), fail-closed audit enforcement (audit failure => decision `DENY`, resolving O-002), database immutability trigger (`prevent_audit_modification`), database privilege separation (`agentgate_app` vs `agentgate_migrator`), `g5audit` QA suite (9 DoD invariants), and `deploy/g5` reproducible topology. Formally approved by Lead Architect 2026-09-14.
 - **G6 — Real MCP End-to-End Enforcement: PASS / CLOSED / FROZEN** (2026-09-16). Lead Architect verdict recorded 2026-09-16. Envoy v3 `ext_authz` gRPC service (`internal/authz`), JSON-RPC 2.0 tool call adapter, trusted gateway identity metadata extraction, `TrustedWorkspaceResolver`, durable PostgreSQL audit with SHA-256 row chaining, adaptation-failure DENY auditing, live `agentgateway:v1.4.0` integration, independent black-box E2E enforcement suite (`qa/g6enforcement`, 12/12 DoD scenarios passing, live outage fail-closed verified, live service recovery verified), and G4-aligned credential hygiene in `deploy/g6`. Formally approved by Lead Architect 2026-09-16.
-- **Admin UI merged** (2026-09-18, PR #3 from a teammate's independent fork): `admin-ui/` — a React/Vite prototype consuming the frozen `frontend/src` contract layer. Built against a G1–G4 understanding of the backend; see [`AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md`](../PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md) §3 for the exact consistency remediation this requires.
+- **Production UI is `frontend/app/` (O-009, resolved 2026-09-18).** Two independent teammates each
+  built a full React/Vite admin UI on 2026-09-18: `admin-ui/` (PR #3, morning) and `frontend/app/`
+  (PR #5/#6, evening — built from the G7 Frontend ticket, but without pulling `admin-ui/`'s merge
+  first). Both consumed the frozen `frontend/src` contract layer correctly. `admin-ui/` was removed
+  the same day in favor of `frontend/app/`, which already had committed automated test coverage and
+  its own API-contract proposal — a consolidation decision, not a quality judgment on the removed
+  one. See `docs/DECISIONS/OPEN_DECISIONS.md`'s O-009 (Resolved) for the full record.
 - **Active Checkpoint: G7 — OPEN, 2026-09-18.** Three self-contained team tickets in
   `docs/PHASES/G7_WORKSTREAMS/`: `01_BACKEND_G7.md` (G6 evidence closeout + downstream credential
   exchange, O-001, + governance read-surface APIs), `02_AI_GATEWAY_G7.md` (G6 evidence closeout,
   environment half + realistic demonstration system), `03_FRONTEND_G7.md` (API contract proposal +
-  automated test coverage for admin-ui). Each ticket states its own cross-team collaboration
+  automated test coverage for `frontend/app/`). Each ticket states its own cross-team collaboration
   points and blockers — nothing is centrally gated the way G1–G6 were.
 
 ---
@@ -53,12 +59,16 @@ This file states only what is true *right now*. It is rewritten in place, not ap
 ### Frontend contract layer (`frontend/`)
 - Framework-agnostic TypeScript library (`src/api/governanceClient.ts`, `src/models/`, `src/state/`, `src/view/`) with full Vitest test coverage (63 tests across 7 suites) for governance, dry-run comparison, and rollback rendering.
 
-### Admin UI (`admin-ui/`)
-- React/Vite prototype consuming the `frontend/src` contract layer directly (never reimplements
-  it). Policies list/create/validate/dry-run/activate/rollback and the Decision Tester are real
-  against the live backend; Dashboard, Tools & Resources, Identities, and Audit Logs are
-  deliberately mock-backed pending read APIs that don't exist yet (see the 3-team plan §3).
-  Admin-token login gate is explicitly a UX gate, not a security boundary.
+### Admin UI (`frontend/app/`)
+- React/Vite production UI consuming the `frontend/src` contract layer via the `@contract` alias
+  (never reimplements it) — same `MockGovernanceClient`/`HttpGovernanceClient` split as the
+  contract layer itself, selected by `VITE_USE_MOCK`/admin-token presence. Policy workflow pages
+  (list/create/activate/dry-run) are real against the live backend and have committed Vitest
+  coverage (`ActivatePolicyPage.test.tsx`, `PoliciesListPage.test.tsx`,
+  `policy-workflow.test.ts`). Dashboard, Tools, Identities, and Audit are mock-backed pending the
+  read APIs G7 Task C is building (see `docs/PHASES/G7_WORKSTREAMS/01_BACKEND_G7.md` §5) — this is
+  a backend-readiness gap, not specific to this UI. Formerly `admin-ui/`, a parallel implementation
+  by a different teammate; removed 2026-09-18 in favor of this one (O-009, resolved).
 
 ### Deploy environments (`deploy/`)
 - `deploy/g3/`: Reproducible Postgres container + readiness probe + migration verification script.
@@ -96,7 +106,7 @@ This file states only what is true *right now*. It is rewritten in place, not ap
 - Supported MCP revision multi-version matrix (O-004).
 - A realistic (non-toy) demonstration deployment — `deploy/g6/` proves enforcement against a toy
   `probe-mcp` counter; a real/realistic backend is Gate G7's AI/Gateway-team mandate.
-- Read-only REST APIs for durable audit query and tool-registry listing (Gate G8) — the admin-ui's
+- Read-only REST APIs for durable audit query and tool-registry listing (Gate G8) — `frontend/app/`'s
   Audit and Tools screens are intentionally still mock-backed until these exist.
 
 ---
@@ -110,9 +120,8 @@ None active. **G7 is open** with 3 tickets in `docs/PHASES/G7_WORKSTREAMS/` — 
 ## Open architectural decisions
 
 See [`docs/DECISIONS/OPEN_DECISIONS.md`](../DECISIONS/OPEN_DECISIONS.md):
-- **Open:** O-001 (downstream identity), O-004 (supported MCP revision), O-009 (production UI
-  framework disposition — not blocking, but should not be left indefinitely unresolved while
-  Frontend keeps investing in `admin-ui`).
+- **Open:** O-001 (downstream identity), O-004 (supported MCP revision).
+- **Resolved 2026-09-18:** O-009 (production UI framework — `frontend/app/`, `admin-ui/` removed).
 - **Resolved:** O-002 (audit durability, resolved G5), O-003 (gateway conformance, resolved G6), O-005 (tool fingerprinting, resolved G2), O-006 (argument authorization model, resolved G2), O-007 (execution identity, resolved G2/G5), O-008 (ext_authz transport mapping, resolved G6).
 
 ---
