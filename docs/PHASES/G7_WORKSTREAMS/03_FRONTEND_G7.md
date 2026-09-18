@@ -2,6 +2,7 @@
 
 **Status:** OPEN — ready to start now.
 **Team:** Frontend. **Plan:** `docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §7.
+**What comes after this checkpoint:** `docs/PHASES/PROGRESS_AND_ROADMAP.md` — the checkpoint tracker (G1→G11), with your team's next tasks already scoped and their dependencies marked.
 **This file is self-contained.** Unlike Backend/AI-Gateway, none of your tasks below are blocked
 on anyone — you are the team others are waiting on for one thing (§3), not the reverse.
 

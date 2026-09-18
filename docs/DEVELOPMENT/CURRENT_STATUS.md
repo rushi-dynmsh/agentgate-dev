@@ -8,6 +8,8 @@ This file states only what is true *right now*. It is rewritten in place, not ap
 
 ## Where we are
 
+**Roadmap / progress tracker:** [`docs/PHASES/PROGRESS_AND_ROADMAP.md`](../PHASES/PROGRESS_AND_ROADMAP.md) — every checkpoint G1→G11, what's done, what's active, what's next, broken down by team with dependencies marked. Read that for scheduling; read this file for the current state of the code.
+
 **Strategy in force:** [`docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md`](../PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md) — 3 strictly independent teams (Backend, AI/Gateway, Frontend), superseding the 5-workstream gated model now that G1–G6 (its entire critical path) are closed. Checkpoint numbering (G7, G8, ...) continues unbroken; a checkpoint no longer requires every team to close together (see that plan's §4).
 
 ### Checkpoint Milestones

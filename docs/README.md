@@ -110,10 +110,17 @@ docs/
 │                                                 it isn't lost
 │
 ├── PHASES/
+│   ├── PROGRESS_AND_ROADMAP.md                   [living tracker] the single answer to "what's
+│   │                                             done, what's in flight, what's next, who's
+│   │                                             blocked on whom" — every checkpoint G1→G11
+│   │                                             broken down by team, with dependencies marked
+│   │                                             IND/DEP. Start here for scheduling questions
 │   ├── AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md
 │   │                                             [ACTIVE STRATEGY] 3 independent teams (Backend,
-│   │                                             AI/Gateway, Frontend) — the plan actually in
-│   │                                             force right now, since 2026-09-18
+│   │                                             AI/Gateway, Frontend) — the operating model
+│   │                                             (roles, ownership, non-negotiables), in force
+│   │                                             since 2026-09-18. The tracker above holds the
+│   │                                             schedule; this holds the rules
 │   ├── AGENTGATE_V1_10_DAY_PARALLEL_TEAM_EXECUTION_PLAN.md
 │   │                                             [superseded, kept] 5-workstream gated model that
 │   │                                             carried G1–G6 to closure; superseded once its
@@ -187,6 +194,8 @@ docs/
 - **"What should my team actually be working on right now?"** → your team's ticket in
   `docs/PHASES/G7_WORKSTREAMS/` (`01_BACKEND_G7.md`, `02_AI_GATEWAY_G7.md`, or
   `03_FRONTEND_G7.md`) — each is self-contained and states its own collaboration points/blockers
+- **"What's done, what's next, and who's blocked on whom?"** →
+  `docs/PHASES/PROGRESS_AND_ROADMAP.md` — the checkpoint tracker, G1 through G11, by team
 - **"What's the frozen authorization contract?"** → `docs/PHASES/G1_WORKSTREAMS/GO_BACKEND_G1_CONTRACT.md`
 - **"Is there an open question blocking this?"** → `docs/DECISIONS/OPEN_DECISIONS.md`
 - **"What security invariant governs this?"** → `docs/SECURITY/PRODUCTION-INVARIANTS.md`

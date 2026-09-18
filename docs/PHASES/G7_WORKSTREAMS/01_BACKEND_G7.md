@@ -2,6 +2,7 @@
 
 **Status:** OPEN — ready to start now.
 **Team:** Backend. **Plan:** `docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §5.
+**What comes after this checkpoint:** `docs/PHASES/PROGRESS_AND_ROADMAP.md` — the checkpoint tracker (G1→G11), with your team's next tasks already scoped and their dependencies marked.
 **This file is self-contained** — you do not need to read the other two teams' tickets to start
 Task A. Read the "Collaboration & Blockers" section (§4) before starting Task B.
 
@@ -155,7 +156,7 @@ isn't blocked. Do not sit idle waiting for another team.
 
 Build two new read-only, authenticated REST endpoints in `internal/govapi`, following the exact
 existing pattern (`AdminAuthMiddleware` from `agentgate/internal/govapi/middleware.go`, same
-`ErrorResponse{Error: ErrorDetail{Code, Message}}` error shape used by the 7 existing policy
+`ErrorResponse{Error: ErrorDetail{Code, Message}}` error shape used by the 8 existing policy
 routes in `agentgate/internal/govapi/handler.go`).
 
 1. **Audit query API** — `GET /api/v1/workspaces/{workspace_id}/audit-events`

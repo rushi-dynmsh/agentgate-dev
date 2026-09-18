@@ -4,6 +4,12 @@
 teams now that the critical-path enforcement work (G1–G6) is closed, and bring an
 out-of-band-developed Admin UI into the same governance the rest of the codebase follows.
 
+**Where the schedule lives:** this file defines *how the teams work* (roles, ownership,
+independence model, non-negotiables). For *what is done, in flight, and next* — the checkpoint
+sequence G7 → G8 → G9 → G10 → G11, each broken down by team with dependencies marked — see
+[`PROGRESS_AND_ROADMAP.md`](PROGRESS_AND_ROADMAP.md). That file is the tracker; this one is the
+operating model. Where they overlap, the tracker is more current.
+
 **Planning basis:** Supersedes
 [`AGENTGATE_V1_10_DAY_PARALLEL_TEAM_EXECUTION_PLAN.md`](AGENTGATE_V1_10_DAY_PARALLEL_TEAM_EXECUTION_PLAN.md)
 (see the banner added to that file). That plan's 5-workstream model, checkpoint-gate discipline,
@@ -106,9 +112,9 @@ reasons for "mock" have changed:
 
 | Screen | UI's stated reason (as of G4) | Actual state now (G6) | Action |
 |---|---|---|---|
-| Audit / Logs | "Durable, queryable audit storage is Gate G5 — not started" | G5 shipped durable, tamper-evident audit (`internal/audit`, Postgres `audit_events`). **But there is still no REST read endpoint for it** — `internal/govapi` exposes only policy CRUD/lifecycle routes (verified: `grep HandleFunc agentgate/internal/govapi/handler.go` — 8 routes, all under `/policies`). | Backend team builds a read-only audit query API (§5, G8). Until it exists, the UI's mock is still the *correct* choice — but its reasoning must say "no read API yet," not "audit doesn't exist yet." |
-| Tools & Resources | "No REST API exposes `internal/toolregistry` yet" | Still true — `internal/toolregistry` has no HTTP surface. | Backend team builds a read-only tool inventory/classification API (§5, G8). Same "still correct conclusion, update the reasoning" note. |
-| Decision Tester | Posts to `cmd/g1-mock-authz` (a non-production binary wrapping the same `internal/decision.Engine`) | `cmd/agentgate` now enforces for real, but only via gRPC `ext_authz` on `:9001` — there is no HTTP JSON decision-test surface on the real production binary. `g1-mock-authz` also bypasses the tool-governance/argument-whitelist/audit layers G2–G6 added around the core engine. | Document this gap explicitly in the UI (it already should not claim more than it does); Backend team decides in G8 whether a lightweight HTTP decision-test endpoint on `cmd/agentgate` is worth adding for demo/ops purposes, separate from the real gRPC enforcement path. |
+| Audit / Logs | "Durable, queryable audit storage is Gate G5 — not started" | G5 shipped durable, tamper-evident audit (`internal/audit`, Postgres `audit_events`). **But there is still no REST read endpoint for it** — `internal/govapi` exposes only policy CRUD/lifecycle routes (verified: `grep HandleFunc agentgate/internal/govapi/handler.go` — 8 routes, all under `/policies`). | Backend team builds a read-only audit query API (§5, G7 Task C). Until it exists, the UI's mock is still the *correct* choice — but its reasoning must say "no read API yet," not "audit doesn't exist yet." |
+| Tools & Resources | "No REST API exposes `internal/toolregistry` yet" | Still true — `internal/toolregistry` has no HTTP surface. | Backend team builds a read-only tool inventory/classification API (§5, G7 Task C). Same "still correct conclusion, update the reasoning" note. |
+| Decision Tester | Posts to `cmd/g1-mock-authz` (a non-production binary wrapping the same `internal/decision.Engine`) | `cmd/agentgate` now enforces for real, but only via gRPC `ext_authz` on `:9001` — there is no HTTP JSON decision-test surface on the real production binary. `g1-mock-authz` also bypasses the tool-governance/argument-whitelist/audit layers G2–G6 added around the core engine. | Document this gap explicitly in the UI (it already should not claim more than it does); Backend team decides in a later checkpoint whether a lightweight HTTP decision-test endpoint on `cmd/agentgate` is worth adding for demo/ops purposes, separate from the real gRPC enforcement path. |
 | Everything else (Policies, Dashboard active-policy card, Settings, Login, Error states) | — | Unaffected — these were already real or correctly reframed and nothing about their backing changed. | No action. |
 
 **Immediate task (Frontend team, before any new feature work):** update `FLOW_AND_ARCHITECTURE.md`
@@ -145,7 +151,7 @@ Now:
   Architect. One team's checkpoint N+1 can start before another team's checkpoint N has closed.
 - **Only two genuine cross-team dependencies exist right now** (everything else is parallelizable):
   1. Frontend's Audit/Tools screens cannot go from 🟡 to 🟢 until Backend ships the read APIs
-     (§5, G8). Frontend does not block on this — it keeps building other screens and defers only
+     (§5, G7 Task C). Frontend does not block on this — it keeps building other screens and defers only
      those two.
   2. AI/Gateway's realistic demonstration system (§6) cannot exercise a *real* downstream credential
      until Backend ships G7's token-exchange mechanism. AI/Gateway does not block on this either —
@@ -163,7 +169,7 @@ Now:
 **Owns:** identity, tool/argument governance, Cedar decision core, policy lifecycle, durable
 audit, downstream credentials, and all of `agentgate/`'s own tests and deploy config.
 
-### G7, Task 0 — G6 Evidence Closeout (do this first, before any new G7 code)
+### G7, Task A — G6 Evidence Closeout (do this first, before any new G7 code)
 
 **Why this exists:** an independent verification pass (2026-09-17, cross-checked and confirmed
 2026-09-18 — see `docs/DECISIONS/OPEN_DECISIONS.md` for the corrected QA-suite claim this
@@ -195,7 +201,7 @@ implementation scope is unchanged.
 claim is backed by a run anyone (or CI) can reproduce, not a fallback that always takes over;
 the corrective-closeout addendum is recorded per `/WORKFLOW.md` §2 step 3.
 
-### G7, Task 1 — Downstream Scoped Identity & Token Exchange (already named as "next" in `CURRENT_STATUS.md`)
+### G7, Task B — Downstream Scoped Identity & Token Exchange (already named as "next" in `CURRENT_STATUS.md`)
 
 Resolves **O-001**. Design and implement the production mechanism by which AgentGate (or the
 component it delegates to) obtains a downstream credential for the real MCP backend that:
@@ -210,7 +216,7 @@ component it delegates to) obtains a downstream credential for the real MCP back
 **Coordinate with AI/Gateway team:** this mechanism should target whatever real backend AI/Gateway
 selects for the demonstration system (§6) — a scoped GitHub token, a scoped API key, or an
 OAuth token-exchange flow, depending on what that backend actually requires. Do not design this in
-a vacuum against a hypothetical backend; use AI/Gateway's G7 backend selection (Task 1,
+a vacuum against a hypothetical backend; use AI/Gateway's G7 backend selection (Task B,
 §6) as the concrete target before finalizing the mechanism.
 
 **DoD:**
@@ -222,7 +228,13 @@ a vacuum against a hypothetical backend; use AI/Gateway's G7 backend selection (
 5. Replay/confusion risks addressed (e.g. credential scoped to this specific call/execution_id
    where the backend's credential model supports it).
 
-### G8 — Governance Read-Surface Expansion
+### G7, Task C — Governance Read-Surface Expansion
+
+**Moved from G8 into G7 on 2026-09-18** when the G7 tickets were written: this work unblocks
+Frontend and Backend has the capacity, so holding it for a later checkpoint served no purpose.
+The operative spec is `docs/PHASES/G7_WORKSTREAMS/01_BACKEND_G7.md` §5 — it carries the concrete
+field-level detail (real `StoredRecord` / `GovernanceRecord` fields, the missing `Registry.List()`
+method) that this section summarizes.
 
 Unblocks Frontend's §3 remediation. Build two new read-only, authenticated REST endpoints in
 `internal/govapi` (same auth pattern as the existing policy routes — constant-time admin-token
@@ -261,7 +273,7 @@ single-pinned to `2026-07-28`/`tools/call`).
 **Owns:** agentgateway configuration and MCP transport correctness (unchanged from v1's WS-B), plus
 two new mandates that didn't exist in the original 10-day plan.
 
-### G7, Task 0 — G6 Evidence Closeout, gateway/deploy half (pairs with Backend's §5 Task 0)
+### G7, Task A — G6 Evidence Closeout, gateway/deploy half (pairs with Backend's §5 Task A)
 
 Backend fixes the test code; this team makes the environment that test code needs actually exist
 and actually be runnable by someone else:
@@ -275,7 +287,7 @@ and actually be runnable by someone else:
 first (no hardcoded machine-specific paths), on at least one environment other than the original
 author's machine.
 
-### G7, Task 1 — Realistic Demonstration System (new mandate)
+### G7, Task B — Realistic Demonstration System (new mandate)
 
 The current proof (`deploy/g6/`) uses `probe-mcp`, a toy backend that only counts calls. That was
 correct for proving the enforcement boundary in isolation, but it does not demonstrate AgentGate's
@@ -305,7 +317,10 @@ work is not blocked on Backend's G7 completing first.
 4. Once Backend's G7 credential mechanism exists, this system is updated to use it for real
    (replacing the interim stub) — tracked as a follow-up task in this same checkpoint, not a new one.
 
-### G9 — Integration Point Expansion (new mandate)
+### G9 — Integration Breadth (new mandate)
+
+**Full definition, including Backend's and Frontend's parts:
+[`PROGRESS_AND_ROADMAP.md`](PROGRESS_AND_ROADMAP.md) §3.** This team's share of it:
 
 Once the demonstration system works end-to-end, use it to identify and document additional places
 AgentGate could plausibly integrate — e.g. multiple concurrent MCP backends behind one gateway,
@@ -314,6 +329,12 @@ a second agent framework, or a second identity provider pattern. This is explici
 `docs/DECISIONS/OPEN_DECISIONS.md` or a new `docs/PHASES/G9_WORKSTREAMS/INTEGRATION_POINTS.md` as
 candidate future scope, not silent architecture expansion. Per `CLAUDE.md`: identify assumptions
 and report them; do not silently build speculative integrations without recording the decision.
+
+Also in G9 for this team: resolve **O-004** (supported MCP revisions) empirically against the
+pinned gateway and our adapter, and build the multi-backend topology — which is **blocked on
+Backend replacing the hardcoded startup tool registry** (`cmd/agentgate/main.go` builds it from a
+literal today; `toolregistry`'s own comment says a persistent store was intended from G3 and it
+never happened).
 
 ---
 
@@ -328,7 +349,7 @@ Execute §3's table exactly: update `admin-ui/FLOW_AND_ARCHITECTURE.md` §3 rows
 (Tools) and the README status table to state the *current* reason each is still mock (no read API
 yet), not the *G4-era* reason (feature not built). This is a documentation edit, not a UI rebuild.
 
-### G8 (paired with Backend's G8): Wire the new read APIs
+### G8 — Wire the new read APIs (consumes Backend's G7 Task C output)
 
 Once Backend ships the audit-query and tool-registry read endpoints:
 
@@ -381,7 +402,7 @@ real and sound but its end-to-end enforcement *evidence* was not — 11 of 12 `q
 tests silently substitute an in-process call for the live path whenever no live gateway is
 reachable (always true in CI and in a plain local test run), and the one live-topology proof that
 exists is a one-time manual capture on a single developer's machine, using tooling that hardcodes
-that machine's file path and cannot run anywhere else. See §5/§6's "G7, Task 0" for the fix.
+that machine's file path and cannot run anywhere else. See §5/§6's "G7, Task A" for the fix.
 
 **A checkpoint's evidence must be reproducible by someone other than the agent that built it, on
 infrastructure other than that agent's own machine, or it is not yet "PASS / CLOSED / FROZEN" — it
@@ -401,13 +422,13 @@ outright) when the condition they depend on isn't met, never silently substitute
    with two active workstream files — `01_BACKEND_G7.md` (§5) and `02_AI_GATEWAY_G7.md` (§6).
    Frontend is not active in G7 (its next scheduled work is G8) and is correctly absent from that
    checkpoint's reference doc, per §4's independence model.
-3. **Both teams do Task 0 (G6 Evidence Closeout, §5/§6) before any other G7 work.** This is
+3. **Both teams do Task A (G6 Evidence Closeout, §5/§6) before any other G7 work.** This is
    deliberately sequenced first: G7's own credential mechanism will need a trustworthy enforcement
    boundary to build on, and per §10's new non-negotiable, no further checkpoint should be marked
    closed on unreproducible evidence the way G6's E2E claim currently is.
-4. Only after Task 0 closes: AI/Gateway picks and documents the real/realistic backend (Task 1,
+4. Only after Task A closes: AI/Gateway picks and documents the real/realistic backend (Task B,
    §6), then hands its credential requirements to Backend team, who designs the token-exchange
-   mechanism against that concrete backend (Task 1, §5).
+   mechanism against that concrete backend (Task B, §5).
 5. Lead Architect rules on **O-009** (production UI framework disposition, `OPEN_DECISIONS.md`) —
    not blocking G7, but should not stay silently unresolved indefinitely while Frontend keeps
    building on `admin-ui` as if it were already the settled answer.

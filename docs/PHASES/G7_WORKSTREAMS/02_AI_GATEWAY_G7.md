@@ -2,6 +2,7 @@
 
 **Status:** OPEN — ready to start now.
 **Team:** AI / Gateway. **Plan:** `docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §6.
+**What comes after this checkpoint:** `docs/PHASES/PROGRESS_AND_ROADMAP.md` — the checkpoint tracker (G1→G11), with your team's next tasks already scoped and their dependencies marked.
 **This file is self-contained** — you do not need to read the other two teams' tickets to start
 Task A or begin Task B's backend-selection work. Read §4 before you need Backend's credential
 mechanism.
