@@ -1,0 +1,647 @@
+openapi: 3.0.3
+info:
+  title: AgentGate Governance API
+  description: >
+    The operator-facing REST API served by `cmd/agentgate` (internal/govapi).
+    This documents the governance/administration surface only — it is a
+    separate path from the runtime MCP enforcement boundary, which is a
+    gRPC Envoy v3 ext_authz service (internal/authz), not part of this API
+    and not representable in a request/response OpenAPI document.
+
+    Every route below requires the same admin credential, supplied as
+    either the `X-AgentGate-Admin-Key` header or a standard
+    `Authorization: Bearer <token>` header. There is no per-user identity on
+    this API — see docs/PROJECT_DEFINITION.md: AgentGate is explicitly "not
+    an identity provider."
+  version: "g7"
+  license:
+    name: Unlicensed — internal use only
+servers:
+  - url: /
+    description: Same origin as wherever cmd/agentgate's HTTP listener is bound (AGENTGATE_HTTP_ADDR, default :8090)
+
+security:
+  - adminKeyHeader: []
+  - adminBearer: []
+
+tags:
+  - name: policies
+    description: Cedar policy lifecycle — candidate, validate, activate, rollback, preview, dry-run compare
+  - name: audit
+    description: G7 — read-only durable audit query
+  - name: tools
+    description: G7 — read-only tool inventory
+  - name: health
+    description: Unauthenticated liveness/readiness (served by internal/httpserver, not govapi)
+
+paths:
+  /healthz:
+    get:
+      tags: [health]
+      summary: Liveness probe
+      security: []
+      responses:
+        "200":
+          description: Process is up.
+
+  /readyz:
+    get:
+      tags: [health]
+      summary: Readiness probe
+      security: []
+      responses:
+        "200":
+          description: Ready to serve (dependencies, e.g. Postgres, reachable).
+        "503":
+          description: Not yet ready.
+
+  /api/v1/workspaces/{workspace_id}/policies:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceID"
+    get:
+      tags: [policies]
+      summary: List every policy version for a workspace
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListPoliciesResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [policies]
+      summary: Create a candidate policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCandidateRequest"
+      responses:
+        "201":
+          description: Candidate created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyRecord"
+        "400":
+          description: Invalid Cedar syntax
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/workspaces/{workspace_id}/policies/validate:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceID"
+    post:
+      tags: [policies]
+      summary: Validate raw Cedar syntax without persisting it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValidateRequest"
+      responses:
+        "200":
+          description: Always 200 — check the `valid` field, not the status code.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidateResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/workspaces/{workspace_id}/policies/rollback:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceID"
+    post:
+      tags: [policies]
+      summary: Roll back to a specific previously-active policy version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RollbackRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RollbackResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Target version not found
+
+  /api/v1/workspaces/{workspace_id}/policies/{version}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceID"
+      - $ref: "#/components/parameters/PolicyVersion"
+    get:
+      tags: [policies]
+      summary: Get one policy version's full record (including raw Cedar content)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyRecord"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Version not found
+
+  /api/v1/workspaces/{workspace_id}/policies/{version}/activate:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceID"
+      - $ref: "#/components/parameters/PolicyVersion"
+    post:
+      tags: [policies]
+      summary: Atomically activate this version as the workspace's live policy
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivateResponse"
+        "400":
+          description: Policy is invalid and cannot be activated
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Version not found
+
+  /api/v1/workspaces/{workspace_id}/policies/{version}/preview:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceID"
+      - $ref: "#/components/parameters/PolicyVersion"
+    post:
+      tags: [policies]
+      summary: Evaluate this policy version against sample principal/resource inputs, without activating it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreviewRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreviewResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Version not found
+
+  /api/v1/workspaces/{workspace_id}/policies/{version}/dryrun:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceID"
+      - $ref: "#/components/parameters/PolicyVersion"
+    post:
+      tags: [policies]
+      summary: Compare this candidate version's decisions against the currently-active version, for the same sample requests
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DryRunCompareRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DryRunCompareResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Version not found
+        "501":
+          description: Dry-run comparison not configured on this deployment
+
+  /api/v1/workspaces/{workspace_id}/audit-events:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceID"
+    get:
+      tags: [audit]
+      summary: Cursor-paginated durable audit query (G7)
+      description: >
+        Read-only. `canonical_payload`, `prev_hash`, and `row_hash` are
+        deliberately excluded — internal chain-verification artifacts, not
+        operator data. See
+        docs/PHASES/G7_WORKSTREAMS/GO_BACKEND_G7_READ_API_CONTRACT.md.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+          description: Capped server-side at 100 regardless of what's requested.
+        - name: before_sequence
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+          description: Returns records with sequence_number strictly less than this value. Omit for the newest page.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditEventsResponse"
+        "400":
+          description: Malformed limit or before_sequence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          description: Audit store not configured on this deployment
+
+  /api/v1/workspaces/{workspace_id}/tools:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceID"
+    get:
+      tags: [tools]
+      summary: List statically-configured tools and their governance classification (G7)
+      description: >
+        `source` is always `"static_configuration"` — this registry is a
+        static, startup-loaded list. It has no visibility into tools seen on
+        live traffic that aren't in that list; an unclassified live tool
+        still fails closed at enforcement time exactly as before.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          description: Tool registry not configured on this deployment
+
+components:
+  securitySchemes:
+    adminKeyHeader:
+      type: apiKey
+      in: header
+      name: X-AgentGate-Admin-Key
+    adminBearer:
+      type: http
+      scheme: bearer
+      description: Same admin token, sent as `Authorization: Bearer <token>` instead of the dedicated header.
+
+  parameters:
+    WorkspaceID:
+      name: workspace_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: >
+        v1 is a single-tenant deployment (docs/SECURITY/PRODUCTION-INVARIANTS.md
+        §9) — this scopes requests for audit correlation and forward
+        compatibility, but is not yet consumed by Cedar evaluation itself.
+    PolicyVersion:
+      name: version
+      in: path
+      required: true
+      schema:
+        type: string
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid admin credential
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: BAD_REQUEST
+            message:
+              type: string
+
+    ValidateRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          description: Raw Cedar policy source.
+
+    ValidateResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        version:
+          type: string
+          description: Present only when valid=true — the content-addressed version identifier.
+        errors:
+          type: array
+          items:
+            type: string
+
+    CreateCandidateRequest:
+      type: object
+      properties:
+        content:
+          type: string
+        description:
+          type: string
+
+    PolicyRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        workspace_id:
+          type: string
+        version:
+          type: string
+        content:
+          type: string
+        state:
+          type: string
+          enum: [candidate, active, historical]
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        activated_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    ListPoliciesResponse:
+      type: object
+      properties:
+        workspace_id:
+          type: string
+        policies:
+          type: array
+          items:
+            $ref: "#/components/schemas/PolicyRecord"
+
+    ActivateResponse:
+      type: object
+      properties:
+        workspace_id:
+          type: string
+        active_version:
+          type: string
+        previous_version:
+          type: string
+        activated_at:
+          type: string
+          format: date-time
+
+    RollbackRequest:
+      type: object
+      properties:
+        target_version:
+          type: string
+
+    RollbackResponse:
+      type: object
+      properties:
+        workspace_id:
+          type: string
+        active_version:
+          type: string
+        rolled_back_from:
+          type: string
+        activated_at:
+          type: string
+          format: date-time
+
+    PreviewSample:
+      type: object
+      properties:
+        principal_id:
+          type: string
+        principal_roles:
+          type: array
+          items:
+            type: string
+        resource_id:
+          type: string
+        resource_risk:
+          type: string
+          enum: [read, write, destructive]
+
+    PreviewRequest:
+      type: object
+      properties:
+        sample_requests:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreviewSample"
+
+    PreviewResult:
+      type: object
+      properties:
+        allowed:
+          type: boolean
+        matched:
+          type: boolean
+        had_error:
+          type: boolean
+
+    PreviewResponse:
+      type: object
+      properties:
+        version:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreviewResult"
+
+    DryRunSampleRequest:
+      type: object
+      properties:
+        execution_id:
+          type: string
+        principal_id:
+          type: string
+        principal_roles:
+          type: array
+          items:
+            type: string
+        on_behalf_of:
+          type: string
+        backend_id:
+          type: string
+        tool_name:
+          type: string
+        risk:
+          type: string
+          enum: [read, write, destructive]
+
+    DryRunCompareRequest:
+      type: object
+      properties:
+        sample_requests:
+          type: array
+          items:
+            $ref: "#/components/schemas/DryRunSampleRequest"
+
+    DryRunCompareResult:
+      type: object
+      properties:
+        active_decision:
+          type: string
+          enum: [ALLOW, DENY]
+        active_reason:
+          type: string
+        active_policy_version:
+          type: string
+        candidate_decision:
+          type: string
+          enum: [ALLOW, DENY]
+        candidate_reason:
+          type: string
+        candidate_policy_version:
+          type: string
+        changed:
+          type: boolean
+
+    DryRunCompareResponse:
+      type: object
+      properties:
+        candidate_version:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/DryRunCompareResult"
+
+    AuditEventView:
+      type: object
+      description: >
+        A read-only projection of audit.StoredRecord. canonical_payload,
+        prev_hash, and row_hash are intentionally not present.
+      properties:
+        id:
+          type: integer
+          format: int64
+        workspace_id:
+          type: string
+        sequence_number:
+          type: integer
+          format: int64
+        execution_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        event_type:
+          type: string
+        decision:
+          type: string
+          enum: [ALLOW, DENY, MUTATION]
+        reason:
+          type: string
+        principal_agent_id:
+          type: string
+        principal_roles:
+          type: array
+          items:
+            type: string
+        principal_on_behalf_of:
+          type: string
+        tool_backend_id:
+          type: string
+        tool_name:
+          type: string
+        tool_risk:
+          type: string
+        policy_version:
+          type: string
+        policy_hash:
+          type: string
+        redacted_arguments:
+          type: object
+          additionalProperties:
+            type: string
+
+    AuditEventsResponse:
+      type: object
+      properties:
+        workspace_id:
+          type: string
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEventView"
+        next_before_sequence:
+          type: integer
+          format: int64
+          nullable: true
+          description: Present whenever at least one event was returned. Resend as the next request's before_sequence to page backward.
+
+    ToolID:
+      type: object
+      properties:
+        backend_id:
+          type: string
+        tool_name:
+          type: string
+
+    ToolView:
+      type: object
+      properties:
+        tool_id:
+          $ref: "#/components/schemas/ToolID"
+        known:
+          type: boolean
+        risk:
+          type: string
+          enum: [read, write, destructive]
+        registered_fingerprint:
+          type: string
+
+    ToolsResponse:
+      type: object
+      properties:
+        workspace_id:
+          type: string
+        source:
+          type: string
+          enum: [static_configuration]
+        tools:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolView"

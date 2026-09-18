@@ -156,6 +156,13 @@ curl -i http://localhost:8090/readyz    # readiness — 200 once the listener is
 The gRPC side has no plain-curl equivalent — exercise it via `deploy/g6/`'s real topology (see
 `deploy/g6/README.md`) or `agentgate/internal/authz`'s own test suite, not a bare HTTP request.
 
+**Interactive API docs:** open `http://localhost:8090/docs` in a browser for a Swagger UI you can
+browse and call the governance REST API from directly ("Try it out" still needs the real admin
+token — default `agentgate-admin-secret-dev`, or whatever `AGENTGATE_ADMIN_TOKEN` is set to). The
+raw spec is at `http://localhost:8090/openapi.yaml`; source is
+`agentgate/internal/apidocs/openapi.yaml`. Covers `internal/govapi`'s REST routes only — the
+gRPC `ext_authz` enforcement boundary isn't representable in OpenAPI.
+
 Stop it with `Ctrl+C` — it shuts down gracefully (in-flight requests are given up to the
 configured shutdown timeout to finish before exit).
 
