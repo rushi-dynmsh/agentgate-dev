@@ -32,7 +32,7 @@ func setupQAEnv() *testEnv {
 	rec := &auditevents.RecordingListener{}
 	mgr := policymanager.NewWithListener(store, rec)
 	govIntegration := governanceintegration.NewGovernanceDecisionService(mgr)
-	handler := govapi.NewHandler(mgr, testAdminToken, govIntegration)
+	handler := govapi.NewHandler(mgr, testAdminToken, govIntegration, nil, nil)
 
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)

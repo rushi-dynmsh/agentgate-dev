@@ -29,7 +29,7 @@ type testEnv struct {
 func setupQAEnv() *testEnv {
 	store := policystore.NewMemoryStore()
 	mgr := policymanager.New(store)
-	handler := govapi.NewHandler(mgr, testAdminToken, nil)
+	handler := govapi.NewHandler(mgr, testAdminToken, nil, nil, nil)
 
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
