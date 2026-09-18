@@ -280,7 +280,29 @@ func (s *PostgresStore) ListRecords(ctx context.Context, workspaceID string, lim
 		return nil, fmt.Errorf("audit: query list records: %w", err)
 	}
 	defer rows.Close()
+	return scanRecordRows(rows)
+}
 
+// ListRecordsBefore returns up to limit records for a workspace with sequence numbers strictly
+// less than beforeSequence, in descending sequence order — the cursor-paginated counterpart to
+// ListRecords, added for G7's audit-query read API.
+func (s *PostgresStore) ListRecordsBefore(ctx context.Context, workspaceID string, beforeSequence int64, limit int) ([]StoredRecord, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	query := fmt.Sprintf(`SELECT %s FROM audit_events WHERE workspace_id = $1 AND sequence_number < $2 ORDER BY sequence_number DESC LIMIT $3`, selectFields)
+	rows, err := s.pool.Query(ctx, query, workspaceID, beforeSequence, limit)
+	if err != nil {
+		return nil, fmt.Errorf("audit: query list records before: %w", err)
+	}
+	defer rows.Close()
+	return scanRecordRows(rows)
+}
+
+// scanRecordRows scans every row of an already-executed audit_events query into StoredRecord
+// values. Shared by ListRecords and ListRecordsBefore, whose row shape is identical — only the
+// WHERE/LIMIT clause differs between them.
+func scanRecordRows(rows pgx.Rows) ([]StoredRecord, error) {
 	var records []StoredRecord
 	for rows.Next() {
 		var r StoredRecord

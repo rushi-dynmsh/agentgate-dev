@@ -132,7 +132,7 @@ carries a real, scoped credential — not the caller's token.
 |---|---|---|---|
 | ⬜ | **A. G6 evidence closeout** — fix `TestScenario07` (tautology), `TestScenario12` (can't fail on wrong ALLOW), split live-E2E from in-process unit path so live skips *loudly* | **IND** to write · **DEP** to verify | Verification step needs AI/Gateway's live topology (their Task A) |
 | ⬜ | **B. Downstream scoped credential** (O-001) — new boundary (e.g. `internal/credential`), invoked only after ALLOW; no raw bearer passthrough; issuance failure → DENY; identity stays auditable | **DEP** | Design now; **implementation blocked on AI/Gateway's backend + credential-model choice** (their Task B, second half) |
-| ⬜ | **C. Governance read-surface** — `GET .../audit-events` (wraps existing `Store.ListRecords`) and `GET .../tools` (**needs a new `Registry.List()`** — only `Lookup` exists today) | **IND** to build · **DEP** to freeze | Shape must be reviewed by Frontend (their Task A) before being called frozen |
+| ✅ | **C. Governance read-surface** — `GET .../audit-events` and `GET .../tools`, implemented to Frontend's own reviewed proposal (`frontend/app/PROPOSED_G8_API_CONTRACTS.md`); `Registry.List()` and `Store.ListRecordsBefore` added; tests cover auth, pagination, empty-result, chain-field exclusion, limit capping | **IND** to build · **DEP** to freeze | Frontend confirming they reviewed *this implementation* (not just their own proposal) is what turns "implemented to spec" into "frozen" — see `GO_BACKEND_G7_READ_API_CONTRACT.md` |
 
 ### AI / Gateway — `02_AI_GATEWAY_G7.md`
 | | Task | Type | Notes |
@@ -153,7 +153,7 @@ carries a real, scoped credential — not the caller's token.
 - [x] Both fixed tests can genuinely fail (verified by deliberately breaking the behavior, then reverting).
 - [ ] Live E2E suite has actually run against a real topology, output captured, replacing the one-time manual capture.
 - [ ] A real downstream credential (≠ inbound token) reaches a real backend on ALLOW; issuance failure denies.
-- [ ] Both read endpoints exist, are read-only, reviewed by Frontend (`frontend/app/PROPOSED_G8_API_CONTRACTS.md`), and documented.
+- [x] Both read endpoints exist, are read-only, implemented to Frontend's reviewed proposal, and documented (`GO_BACKEND_G7_READ_API_CONTRACT.md`). Pending: Frontend's explicit sign-off on the *implementation* (not just their own proposal) before calling it frozen.
 - [x] `frontend/app` has committed, re-runnable tests for its real panels.
 - [x] Corrective-closeout addendum added to G6's `CLOSURE_SUMMARY.md`.
 

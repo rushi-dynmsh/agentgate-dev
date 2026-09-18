@@ -4,28 +4,38 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/Dynamisch-LLC/agentgate/internal/audit"
 	"github.com/Dynamisch-LLC/agentgate/internal/decision"
 	"github.com/Dynamisch-LLC/agentgate/internal/governanceintegration"
 	"github.com/Dynamisch-LLC/agentgate/internal/policy"
 	"github.com/Dynamisch-LLC/agentgate/internal/policymanager"
 	"github.com/Dynamisch-LLC/agentgate/internal/policystore"
+	"github.com/Dynamisch-LLC/agentgate/internal/toolregistry"
 )
 
 // Handler serves policy governance REST endpoints.
 type Handler struct {
 	manager        *policymanager.Manager
 	govIntegration *governanceintegration.GovernanceDecisionService
+	auditStore     audit.Store
+	toolRegistry   *toolregistry.Registry
 	adminToken     string
 }
 
 // NewHandler constructs a new Handler.
 // govIntegration may be nil if dry-run compare is not needed (backward compatible).
-func NewHandler(manager *policymanager.Manager, adminToken string, govIntegration *governanceintegration.GovernanceDecisionService) *Handler {
+// auditStore and toolRegistry may be nil if the audit-events and tools read endpoints
+// (G7 Task C) are not needed — each returns 501 NOT_IMPLEMENTED if called without its
+// dependency configured, rather than panicking.
+func NewHandler(manager *policymanager.Manager, adminToken string, govIntegration *governanceintegration.GovernanceDecisionService, auditStore audit.Store, toolRegistry *toolregistry.Registry) *Handler {
 	return &Handler{
 		manager:        manager,
 		govIntegration: govIntegration,
+		auditStore:     auditStore,
+		toolRegistry:   toolRegistry,
 		adminToken:     adminToken,
 	}
 }
@@ -44,6 +54,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/workspaces/{workspace_id}/policies/{version}", protect(h.handleGetPolicy))
 	mux.HandleFunc("GET /api/v1/workspaces/{workspace_id}/policies", protect(h.handleListPolicies))
 	mux.HandleFunc("POST /api/v1/workspaces/{workspace_id}/policies", protect(h.handleCreateCandidate))
+	mux.HandleFunc("GET /api/v1/workspaces/{workspace_id}/audit-events", protect(h.handleListAuditEvents))
+	mux.HandleFunc("GET /api/v1/workspaces/{workspace_id}/tools", protect(h.handleListTools))
 }
 
 func (h *Handler) handleValidate(w http.ResponseWriter, r *http.Request) {
@@ -324,6 +336,123 @@ func (h *Handler) handleDryRunCompare(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, DryRunCompareResponse{
 		CandidateVersion: version,
 		Results:          results,
+	})
+}
+
+const (
+	auditEventsDefaultLimit = 50
+	auditEventsMaxLimit     = 100
+)
+
+func (h *Handler) handleListAuditEvents(w http.ResponseWriter, r *http.Request) {
+	workspaceID := r.PathValue("workspace_id")
+	if workspaceID == "" {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "workspace_id required")
+		return
+	}
+
+	if h.auditStore == nil {
+		writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "audit store not configured")
+		return
+	}
+
+	limit := auditEventsDefaultLimit
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed <= 0 {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "limit must be a positive integer")
+			return
+		}
+		limit = parsed
+	}
+	if limit > auditEventsMaxLimit {
+		limit = auditEventsMaxLimit
+	}
+
+	var (
+		records []audit.StoredRecord
+		err     error
+	)
+	if raw := r.URL.Query().Get("before_sequence"); raw != "" {
+		beforeSeq, perr := strconv.ParseInt(raw, 10, 64)
+		if perr != nil {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "before_sequence must be an integer")
+			return
+		}
+		records, err = h.auditStore.ListRecordsBefore(r.Context(), workspaceID, beforeSeq, limit)
+	} else {
+		records, err = h.auditStore.ListRecords(r.Context(), workspaceID, limit)
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to list audit events")
+		return
+	}
+
+	events := make([]AuditEventView, 0, len(records))
+	for _, rec := range records {
+		events = append(events, AuditEventView{
+			ID:                  rec.ID,
+			WorkspaceID:         rec.WorkspaceID,
+			SequenceNumber:      rec.SequenceNumber,
+			ExecutionID:         rec.ExecutionID,
+			Timestamp:           rec.Timestamp,
+			EventType:           rec.EventType,
+			Decision:            rec.Decision,
+			Reason:              rec.Reason,
+			PrincipalAgentID:    rec.PrincipalAgentID,
+			PrincipalRoles:      rec.PrincipalRoles,
+			PrincipalOnBehalfOf: rec.PrincipalOnBehalfOf,
+			ToolBackendID:       rec.ToolBackendID,
+			ToolName:            rec.ToolName,
+			ToolRisk:            rec.ToolRisk,
+			PolicyVersion:       rec.PolicyVersion,
+			PolicyHash:          rec.PolicyHash,
+			RedactedArguments:   rec.RedactedArguments,
+		})
+	}
+
+	resp := AuditEventsResponse{
+		WorkspaceID: workspaceID,
+		Events:      events,
+	}
+	if len(events) > 0 {
+		next := events[len(events)-1].SequenceNumber
+		resp.NextBeforeSequence = &next
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) handleListTools(w http.ResponseWriter, r *http.Request) {
+	workspaceID := r.PathValue("workspace_id")
+	if workspaceID == "" {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "workspace_id required")
+		return
+	}
+
+	if h.toolRegistry == nil {
+		writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "tool registry not configured")
+		return
+	}
+
+	records := h.toolRegistry.List()
+	tools := make([]ToolView, 0, len(records))
+	for _, rec := range records {
+		tools = append(tools, ToolView{
+			ToolID: ToolIDView{
+				BackendID: rec.ToolID.BackendID,
+				ToolName:  rec.ToolID.ToolName,
+			},
+			Known:                 rec.Known,
+			Risk:                  string(rec.Risk),
+			RegisteredFingerprint: string(rec.RegisteredFingerprint),
+		})
+	}
+
+	writeJSON(w, http.StatusOK, ToolsResponse{
+		WorkspaceID: workspaceID,
+		Source:      "static_configuration",
+		Tools:       tools,
 	})
 }
 

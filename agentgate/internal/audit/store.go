@@ -21,6 +21,14 @@ type Store interface {
 	// ListRecords retrieves audit records for a workspace in descending sequence order, up to limit.
 	ListRecords(ctx context.Context, workspaceID string, limit int) ([]StoredRecord, error)
 
+	// ListRecordsBefore retrieves audit records for a workspace with sequence numbers strictly
+	// less than beforeSequence, in descending sequence order, up to limit. Added for G7's
+	// cursor-paginated audit-query read API (govapi) — the existing ListRecords has no cursor
+	// parameter and changing its signature would touch G5's already-verified callers
+	// (internal/audit/verifier.go, qa/g5audit), so this is a new method rather than a signature
+	// change to that one.
+	ListRecordsBefore(ctx context.Context, workspaceID string, beforeSequence int64, limit int) ([]StoredRecord, error)
+
 	// GetRecordBySequence retrieves a specific record by its workspace and sequence number.
 	// Returns ErrNotFound if the record does not exist.
 	GetRecordBySequence(ctx context.Context, workspaceID string, seq int64) (*StoredRecord, error)

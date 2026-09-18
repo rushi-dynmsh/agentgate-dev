@@ -103,9 +103,6 @@ func run() error {
 		}
 	}
 
-	govHandler := govapi.NewHandler(policyMgr, cfg.AdminToken, govIntegration)
-	govHandler.RegisterRoutes(srv.Mux())
-
 	// Build ext_authz adapter components
 	identityMapper, err := identity.NewMapper(identity.MapperConfig{
 		AgentIDClaim:    "sub",
@@ -157,6 +154,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("init tool registry: %w", err)
 	}
+
+	govHandler := govapi.NewHandler(policyMgr, cfg.AdminToken, govIntegration, auditStore, toolReg)
+	govHandler.RegisterRoutes(srv.Mux())
 
 	readStatusDecls, _ := argdecl.NewDeclarationSet([]argdecl.Declaration{
 		{
