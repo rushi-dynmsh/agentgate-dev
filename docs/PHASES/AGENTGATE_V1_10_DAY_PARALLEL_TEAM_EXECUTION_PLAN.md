@@ -1,5 +1,11 @@
 # AgentGate v1 — 10-Day Parallel Team Execution Plan
 
+> **Superseded 2026-09-18** by
+> [`AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md`](AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md)
+> after G1–G6 (this plan's entire critical path) closed PASS/CLOSED/FROZEN. Kept for history —
+> the 5-workstream gated model below is not the model in force. Do not execute new work against
+> this file; read the plan linked above instead.
+
 **Purpose:** Coordinate the remaining 10 days of AgentGate v1 development as parallel workstreams rather than a sequential implementation queue.
 
 **Planning basis:** This plan compresses the existing 15-day production-readiness plan after completion of Day 1 and Day 2. It preserves the project's existing architecture, security invariants, ownership boundaries, and production gates.

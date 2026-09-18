@@ -147,4 +147,103 @@ To understand the G6 implementation and contract enforcement, inspect these file
 
 ### 4.2 Carried Forward to Subsequent Checkpoints
 - **O-001 (Downstream identity / credential propagation):** Critical priority for Gate G7. AgentGate must establish scoped downstream credentials rather than forwarding the inbound bearer token.
+
+---
+
+## 5. Corrective-Closeout Addendum (2026-09-18, G7 Task A)
+
+**This does not reopen or change G6's verdict above.** PASS/CLOSED/FROZEN stands; G6's
+*implementation* was and remains sound. This addendum records an evidence-integrity gap found
+during G7 Task A's independent verification pass, and what was fixed. Per `/WORKFLOW.md` §2's
+corrective-closeout pattern and the new non-negotiable in
+`docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §9 ("evidence must be reproducible by
+someone other than the agent that built it"), fixing the tests is required even though the
+checkpoint itself is closed.
+
+### 5.1 What was found
+
+§1 above claims "0 calls reached the backend... proven by a black-box test suite running against
+the live multi-container topology." Reading `enforcement_test.go` directly showed this was
+overstated in a specific way: 10 of the 12 scenarios wrapped their live-topology HTTP assertions in
+`if isLiveGatewayAvailable() { ... }`, then unconditionally fell through to an in-process
+assertion regardless of the outcome. `isLiveGatewayAvailable()` checks reachability of
+`getBackendURL()+"/healthz"`, which is false in CI (`.github/workflows/ci.yml` runs
+`go test -race ./...` with no `docker compose` step) and in a plain local `go test ./...`. So the
+"12/12 passing, proven against the live topology" claim was true only for whoever ran
+`run-e2e-matrix.ps1` by hand; everyone else — including CI — got 12/12 green from the in-process
+fallback alone, with no signal that the live path had never run.
+
+Two scenarios had a deeper problem, independent of the live/unit conflation:
+
+- `TestScenario07_AgentGateUnavailable` asserted `if nilServer != nil` on a variable assigned
+  nothing but `nil` — an unconditionally-true tautology — then made an unrelated raw-socket check
+  against an address nothing in this codebase serves. It could not fail and proved nothing about
+  AgentGate's actual fail-closed behavior.
+- `TestScenario12_OversizedBody`'s only reaction to an unexpected `allowed == true` was `t.Log`,
+  not `t.Fatalf` — it could not fail on the one outcome it was named for.
+
+**A third, previously undocumented issue surfaced while fixing Scenario 12**, and turned out to be
+larger than either of the above: `internal/authz.Adapter.extractClaims` reads identity *only* from
+`Attributes.MetadataContext.FilterMetadata["envoy.filters.http.jwt_authn"]` — the gateway's
+post-verification JWT claims — and never from HTTP headers, per the adapter's own comment
+("Unverified client headers ... MUST NEVER be trusted as authenticated identity"). Six of the
+twelve unit-test bodies (Scenarios 02, 03, 05, 08, 09, 10) set only `Headers` for identity fields
+(`x-agent-id`, `x-roles`, etc.) and never set `MetadataContext`. In the in-process harness that
+means identity mapping fails on every one of them *before* the adapter ever reaches the specific
+check each scenario claims to prove — so all six were denying (and reporting PASS) for "missing
+identity," not for the destructive-tool-denial, unknown-tool, ambiguous-identity, policy-evaluation,
+fingerprint-drift, or spoofed-classification checks their names promise. This was masked because
+each of those failure modes also produces a `PermissionDenied` response, and the assertions only
+checked the response code, not which code path produced it.
+
+### 5.2 What was fixed
+
+All in `agentgate/qa/g6enforcement/enforcement_test.go`, verified by `go build ./...`,
+`go vet ./...`, `gofmt -l .` (clean), and `go test ./...` (whole module green):
+
+1. **Live/unit split.** Every scenario that had a live-topology block now has two distinct test
+   functions: `TestScenarioNN_<Name>` (always in-process) and `TestScenarioNN_<Name>_LiveE2E`
+   (calls `skipIfLiveUnavailable`, which `t.Skip()`s with an explicit, actionable message — never
+   silently substitutes the unit path — when no live backend is reachable). Scenarios 07 and 12
+   never had a real live counterpart to extract; none was added (07's "AgentGate outage" is a
+   decision-service-level fault better simulated in Go than orchestrated via live process kills;
+   see the in-code comment for what a true live counterpart would need).
+2. **Scenario 07 rewritten.** Wired a `failingEvaluator` that returns a genuine error through the
+   real production path (`authz.Server` → `audit.AuditedDecisionService` → the failing evaluator)
+   and asserts the call is denied — proving the actual fail-closed contract, not an unused
+   variable.
+3. **Scenario 12 rewritten.** There is no request-body size limit anywhere in the Go adapter
+   (verified: no such check exists in `internal/authz`) — that limit is enforced at the gateway
+   layer (`deploy/g6/agentgateway.yaml`'s `maxRequestBytes: 1MB`, cf. §2.1's diagram), not in this
+   process. `argdecl`'s whitelist already causes an undeclared argument to be silently dropped
+   before it can reach `decision.Request.Arguments` — so ALLOW is the *correct* outcome for an
+   undeclared oversized argument on a declared-safe tool, not a bug. The rewritten test asserts the
+   actual security property directly: the evaluator now records the last `decision.Request` it
+   received (`staticEvaluator.LastRequest()`), and the test asserts the undeclared `"payload"` key
+   is absent from it — i.e. that it never reached policy — rather than inferring this indirectly
+   from an ALLOW/DENY code that can't distinguish "stripped safely" from "leaked but didn't matter."
+4. **The six identity-masked scenarios fixed.** Added a `jwtMetadata(claims)` helper and gave
+   Scenarios 02, 03, 08, 09, 10 valid JWT metadata (so they reach the specific check they test) and
+   gave Scenario 05 its ambiguity condition (`sub == obo`) *in the JWT claims*, not in headers
+   (so identity mapping itself is what denies it, per `internal/identity.Mapper`'s actual ambiguity
+   check).
+5. **Verified the fixes have teeth**, per the ticket's DoD: temporarily broke each of Scenario 07's
+   and Scenario 12's underlying behavior, confirmed the test caught it (`t.Fatalf` fired), then
+   reverted. Both were confirmed capable of failing before being left in their fixed state.
+
+### 5.3 What remains open
+
+- **DoD item "live surface run at least once against a real topology"** is **not yet closed** —
+  it depends on AI/Gateway team's G7 Task A (portable `run-e2e-matrix.ps1`, live topology
+  reachable from a clean checkout; see `docs/PHASES/G7_WORKSTREAMS/02_AI_GATEWAY_G7.md` §2). Once
+  that lands, run the new `*_LiveE2E` suite against it and capture the output here, replacing
+  `G6_GATEWAY_CONTRACT_OBSERVED.json` as this checkpoint's live evidence.
+- Reason-code-level assertions (proving *which* `decision.ReasonCode` denied each scenario, not
+  just that a `PermissionDenied` code came back) would make these tests materially stronger and
+  would have caught the identity-masking issue immediately. Not done here — `executeCall` only
+  returns `(bool, int32)` today; extending it is a reasonable, small future improvement, recorded
+  here rather than done silently mid-ticket.
+- A request-body size limit (the thing Scenario 12's original comment assumed existed) is a
+  legitimate, separate hardening item — tracked as Backend work in
+  `docs/PHASES/PROGRESS_AND_ROADMAP.md` §3 (G10).
 - **O-004 (Supported MCP revision):** High priority. Pinned fixture uses MCP `tools/call` JSON-RPC 2.0. Formal negotiation of multiple MCP revisions will be finalized in future milestones.

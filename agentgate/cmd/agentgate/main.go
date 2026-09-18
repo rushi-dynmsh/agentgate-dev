@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/Dynamisch-LLC/agentgate/internal/apidocs"
 	"github.com/Dynamisch-LLC/agentgate/internal/argdecl"
 	"github.com/Dynamisch-LLC/agentgate/internal/audit"
 	"github.com/Dynamisch-LLC/agentgate/internal/authz"
@@ -103,9 +104,6 @@ func run() error {
 		}
 	}
 
-	govHandler := govapi.NewHandler(policyMgr, cfg.AdminToken, govIntegration)
-	govHandler.RegisterRoutes(srv.Mux())
-
 	// Build ext_authz adapter components
 	identityMapper, err := identity.NewMapper(identity.MapperConfig{
 		AgentIDClaim:    "sub",
@@ -157,6 +155,11 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("init tool registry: %w", err)
 	}
+
+	govHandler := govapi.NewHandler(policyMgr, cfg.AdminToken, govIntegration, auditStore, toolReg)
+	govHandler.RegisterRoutes(srv.Mux())
+	apidocs.RegisterRoutes(srv.Mux())
+	logger.Info("governance API docs available", "path", "/docs")
 
 	readStatusDecls, _ := argdecl.NewDeclarationSet([]argdecl.Declaration{
 		{

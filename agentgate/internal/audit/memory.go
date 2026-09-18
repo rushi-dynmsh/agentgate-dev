@@ -151,6 +151,27 @@ func (m *MemoryStore) ListRecords(_ context.Context, workspaceID string, limit i
 	return out, nil
 }
 
+func (m *MemoryStore) ListRecordsBefore(_ context.Context, workspaceID string, beforeSequence int64, limit int) ([]StoredRecord, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	recs, ok := m.records[workspaceID]
+	if !ok || len(recs) == 0 {
+		return []StoredRecord{}, nil
+	}
+	if limit <= 0 {
+		limit = len(recs)
+	}
+
+	out := make([]StoredRecord, 0, limit)
+	for i := len(recs) - 1; i >= 0 && len(out) < limit; i-- {
+		if recs[i].SequenceNumber < beforeSequence {
+			out = append(out, recs[i])
+		}
+	}
+	return out, nil
+}
+
 // GetRecordBySequence finds a specific record by workspace and sequence number.
 func (m *MemoryStore) GetRecordBySequence(_ context.Context, workspaceID string, seq int64) (*StoredRecord, error) {
 	m.mu.RLock()

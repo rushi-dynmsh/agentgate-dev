@@ -317,3 +317,30 @@ func (r *Registry) Lookup(id ToolID, liveFingerprint SchemaFingerprint) Governan
 		DriftStatus:           drift,
 	}
 }
+
+// List returns the governance record for every tool currently configured in
+// the registry, ordered deterministically by ToolID (BackendID, then
+// ToolName). It reflects only this registry's static, startup-loaded
+// configuration — it never discovers tools from live traffic, and it never
+// performs drift checking (no live fingerprint is available for a bulk
+// listing; DriftStatus is left at its zero value, [DriftNone], for every
+// entry). Callers needing an authoritative per-call drift check must still
+// use [Registry.Lookup].
+func (r *Registry) List() []GovernanceRecord {
+	out := make([]GovernanceRecord, 0, len(r.entries))
+	for _, entry := range r.entries {
+		out = append(out, GovernanceRecord{
+			ToolID:                entry.ToolID,
+			Known:                 true,
+			Risk:                  entry.Risk,
+			RegisteredFingerprint: entry.RegisteredFingerprint,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ToolID.BackendID != out[j].ToolID.BackendID {
+			return out[i].ToolID.BackendID < out[j].ToolID.BackendID
+		}
+		return out[i].ToolID.ToolName < out[j].ToolID.ToolName
+	})
+	return out
+}

@@ -7,22 +7,64 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Dynamisch-LLC/agentgate/internal/audit"
 	"github.com/Dynamisch-LLC/agentgate/internal/fixturepolicy"
 	"github.com/Dynamisch-LLC/agentgate/internal/governanceintegration"
 	"github.com/Dynamisch-LLC/agentgate/internal/policymanager"
 	"github.com/Dynamisch-LLC/agentgate/internal/policystore"
+	"github.com/Dynamisch-LLC/agentgate/internal/toolregistry"
 )
 
+// setupTestServer wires nil for the audit store and tool registry, matching
+// every caller in this file, which predate G7 Task C and don't exercise the
+// read endpoints. Deliberately does NOT delegate to setupTestServerWithReadDeps
+// — doing so would silently give every existing test a real audit
+// store/registry it never asked for, and would make it impossible to test
+// the handler's documented nil-is-safe (501, not panic) contract at all.
 func setupTestServer(adminToken string) (*httptest.Server, *policymanager.Manager) {
 	store := policystore.NewMemoryStore()
 	mgr := policymanager.New(store)
 	govIntegration := governanceintegration.NewGovernanceDecisionService(mgr)
-	handler := NewHandler(mgr, adminToken, govIntegration)
+	handler := NewHandler(mgr, adminToken, govIntegration, nil, nil)
 
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
 
 	return httptest.NewServer(mux), mgr
+}
+
+// setupTestServerWithReadDeps additionally wires a real audit store and tool
+// registry, for tests of the G7 Task C read endpoints (handleListAuditEvents,
+// handleListTools) that setupTestServer's callers don't need.
+func setupTestServerWithReadDeps(adminToken string) (*httptest.Server, *policymanager.Manager, audit.Store, *toolregistry.Registry) {
+	store := policystore.NewMemoryStore()
+	mgr := policymanager.New(store)
+	govIntegration := governanceintegration.NewGovernanceDecisionService(mgr)
+	auditStore := audit.NewMemoryStore()
+
+	readFP, _ := toolregistry.FingerprintSchema([]byte(`{"type":"object"}`))
+	toolReg, err := toolregistry.NewRegistry([]toolregistry.RegistryEntry{
+		{
+			ToolID:                toolregistry.ToolID{BackendID: "default", ToolName: "read_status"},
+			Risk:                  toolregistry.RiskRead,
+			RegisteredFingerprint: readFP,
+		},
+		{
+			ToolID:                toolregistry.ToolID{BackendID: "default", ToolName: "admin_action"},
+			Risk:                  toolregistry.RiskDestructive,
+			RegisteredFingerprint: readFP,
+		},
+	})
+	if err != nil {
+		panic("setupTestServerWithReadDeps: invalid fixture registry: " + err.Error())
+	}
+
+	handler := NewHandler(mgr, adminToken, govIntegration, auditStore, toolReg)
+
+	mux := http.NewServeMux()
+	handler.RegisterRoutes(mux)
+
+	return httptest.NewServer(mux), mgr, auditStore, toolReg
 }
 
 func TestAdminAuth_Unauthorized(t *testing.T) {

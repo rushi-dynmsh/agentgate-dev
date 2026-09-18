@@ -1,10 +1,15 @@
 # AgentGate — Setup and Getting Started
 
 **Audience:** anyone on the team setting up this repository locally for the first time.
-**Repository state this guide matches:** post-G1 (authorization contract frozen) — see
-`docs/DEVELOPMENT/CURRENT_STATUS.md` for the current checkpoint, and `docs/README.md` for full
-navigation. This guide covers the `agentgate/` Go module in detail (§3-8); the `gateway/`,
-`frontend/`, and `deploy/` trees each have their own README/setup notes at their root.
+**Repository state this guide matches:** post-G6 (real MCP enforcement live; G7 in progress under
+the 3-team model) — see `docs/DEVELOPMENT/CURRENT_STATUS.md` for the current checkpoint, and
+`docs/README.md` for full navigation. This guide covers the `agentgate/` Go module in detail
+(§3-8); the `gateway/`, `frontend/`, `frontend/app/`, and `deploy/` trees each have their own
+README/setup notes at their root. **Corrected 2026-09-18** — this guide previously described
+`internal/authz`, `internal/identity`, and `internal/audit` as unimplemented boundary packages;
+all three have been fully built since (G2, G5, G6 respectively). Read `CURRENT_STATUS.md`, not
+this file, if you need the current authoritative state — this file is a setup guide, not a status
+tracker, and can drift between refreshes.
 
 ---
 
@@ -39,11 +44,13 @@ cd agentgate-dev
 ```
 agentgate-dev/
   CLAUDE.md                  coding-agent operating rules — read before making changes
+  WORKFLOW.md                the dev workflow/roles doc — read before making changes
   docs/                      canonical project documentation — start with docs/README.md
   .github/workflows/ci.yml   CI — runs the checks in §4 automatically on push/PR
   agentgate/                 the Go module — THE product code lives here
     go.mod                   module github.com/Dynamisch-LLC/agentgate, go 1.26
-    cmd/agentgate/           production executable entry point (main.go)
+    cmd/agentgate/           production executable entry point: HTTP health/readiness (:8090)
+                             + Envoy v3 ext_authz gRPC service (:9001, real, not a stub)
     cmd/g1-mock-authz/       non-production JSON/HTTP wrapper around the decision core,
                              used for G1 cross-stream integration — never used by cmd/agentgate
     internal/config/         typed, validated startup configuration
@@ -53,19 +60,37 @@ agentgate-dev/
     internal/policy/         the narrow Cedar boundary — only package that imports cedar-go
     internal/fixturepolicy/  shared canonical Cedar test/dev fixture
     internal/mockauthz/      JSON wire layer for cmd/g1-mock-authz
-    internal/authz/          (boundary only — real ext_authz gRPC service, not implemented yet)
-    internal/identity/       (boundary only — JWT claims-mapping, not implemented yet)
-    internal/audit/          (boundary only — not implemented yet)
-    qa/g1blackbox/           independent black-box test suite (imports no internal/* package)
+    internal/identity/       identity claims mapping, fail-closed (G2)
+    internal/toolregistry/   tool schema fingerprinting + drift detection (G2)
+    internal/argdecl/        per-tool argument whitelist declarations (G2)
+    internal/contextassembly/ builds decision.Request from identity+tool+args (G2)
+    internal/policystore/    policy persistence, Memory + PostgreSQL (G3)
+    internal/policymanager/  policy lifecycle: activation, rollback, preview (G3)
+    internal/govapi/         admin governance REST API (G3)
+    internal/auditevents/    policy-mutation audit events (G4)
+    internal/governanceintegration/ dry-run candidate-vs-active comparison (G4)
+    internal/audit/          durable, tamper-evident decision audit — Postgres, SHA-256 row
+                             chaining, fail-closed on write failure (G5), real-time-integrated (G6)
+    internal/authz/          real Envoy v3 ext_authz gRPC adapter/server (G6). Its E2E test
+                             suite's live/unit conflation and two structurally-fake tests were
+                             found and fixed in G7 Task A (2026-09-18) — see the corrective-
+                             closeout addendum in docs/PHASES/G6_WORKSTREAMS/CLOSURE_SUMMARY.md §5
+    qa/g1blackbox/           independent black-box suite, genuinely zero internal/* imports
+    qa/g2security/, qa/g3governance/, qa/g4integration/, qa/g5audit/, qa/g6enforcement/
+                             black-box in the sense of testing the contract, not internals — but
+                             each imports internal/* directly (only g1blackbox is import-free)
   gateway/                   agentgateway configuration + an independent Go verification harness
   frontend/                  TypeScript models/parsing/state-machine for the frozen contract
-                             (no production UI framework chosen yet)
-  deploy/g1/                 Docker Compose topology for the G1 mock
+                             (framework-agnostic by design — no rendering code; see frontend/app/)
+    app/                     the production React/Vite UI (O-009, resolved 2026-09-18), consuming
+                             frontend/'s contract layer via the `@contract` Vite alias
+  deploy/g1/ ... deploy/g6/  one Docker Compose topology per checkpoint that needed one; g6 is the
+                             current real-enforcement proof
 ```
 
 All Go commands below are run **from inside `agentgate/`** — that's where `go.mod` lives, not
-the repo root. `gateway/harness` is its own separate Go module (its own `go.mod`); `frontend/` is
-an npm/Vitest project, not Go.
+the repo root. `gateway/harness` is its own separate Go module (its own `go.mod`); `frontend/` and
+`frontend/app/` are npm projects (Vitest and Vite respectively), not Go.
 
 ## 4. Build and test it
 
@@ -85,11 +110,16 @@ go build ./...
 go test ./...
 ```
 
-Expected result: `gofmt -l .` prints nothing, and `go test ./...` reports `ok` for
-`internal/config`, `internal/logging`, `internal/httpserver`, `internal/decision`,
-`internal/policy`, `internal/mockauthz`, and `qa/g1blackbox` (the boundary-only packages —
-`internal/authz`, `internal/identity`, `internal/audit`, and `internal/fixturepolicy`, which has
-no tests of its own — report `[no test files]`; that's expected, not a failure).
+Expected result: `gofmt -l .` prints nothing, and `go test ./...` reports `ok` for every package
+with test files — which by now (post-G6) is most of `internal/*` and all six `qa/*` suites, not
+just the original handful from G1. A small number of packages genuinely have no tests of their own
+and correctly report `[no test files]`: `internal/fixturepolicy` (a shared test fixture, not code
+under test), `internal/g2fixtures` (same reason), and the embedded-SQL `migrations` subdirectories
+under `internal/audit/` and `internal/policystore/` (SQL files, not Go). **Corrected 2026-09-18**
+— this section previously and incorrectly described `internal/authz`, `internal/identity`, and
+`internal/audit` as untested boundary stubs; all three have full test suites today. If in doubt,
+run `go test ./...` yourself and read the actual output rather than trusting any specific package
+list in prose, here or elsewhere — that's exactly the kind of claim that goes stale.
 
 Optional, matching CI more closely:
 
@@ -112,13 +142,26 @@ cd agentgate
 go run ./cmd/agentgate
 ```
 
-By default it starts an HTTP server on `:8090` with structured JSON logs on stdout. In another
-terminal, confirm it's alive:
+By default it starts an HTTP server on `:8090` (health/readiness) **and**, since G6, a real Envoy
+v3 `ext_authz` gRPC service on `:9001` — this is the actual production enforcement endpoint
+`agentgateway` calls; it is not a stub or a mock. Both start from the same `go run ./cmd/agentgate`
+invocation. Structured JSON logs go to stdout. In another terminal, confirm the HTTP side is
+alive:
 
 ```bash
 curl -i http://localhost:8090/healthz   # liveness — always 200 once the process is up
 curl -i http://localhost:8090/readyz    # readiness — 200 once the listener is bound
 ```
+
+The gRPC side has no plain-curl equivalent — exercise it via `deploy/g6/`'s real topology (see
+`deploy/g6/README.md`) or `agentgate/internal/authz`'s own test suite, not a bare HTTP request.
+
+**Interactive API docs:** open `http://localhost:8090/docs` in a browser for a Swagger UI you can
+browse and call the governance REST API from directly ("Try it out" still needs the real admin
+token — default `agentgate-admin-secret-dev`, or whatever `AGENTGATE_ADMIN_TOKEN` is set to). The
+raw spec is at `http://localhost:8090/openapi.yaml`; source is
+`agentgate/internal/apidocs/openapi.yaml`. Covers `internal/govapi`'s REST routes only — the
+gRPC `ext_authz` enforcement boundary isn't representable in OpenAPI.
 
 Stop it with `Ctrl+C` — it shuts down gracefully (in-flight requests are given up to the
 configured shutdown timeout to finish before exit).
@@ -131,7 +174,8 @@ default, so none of this is required for a first run.
 | Variable | Default | Meaning |
 |---|---|---|
 | `AGENTGATE_ENV` | `development` | Free-form deployment label, logged at startup |
-| `AGENTGATE_HTTP_ADDR` | `:8090` | HTTP listen address |
+| `AGENTGATE_HTTP_ADDR` | `:8090` | HTTP listen address (health/readiness) |
+| `AGENTGATE_AUTHZ_GRPC_ADDR` | `:9001` | Envoy v3 `ext_authz` gRPC listen address (added G6; also settable as `AGENTGATE_AUTHZ_GRPC_PORT` for a bare port) |
 | `AGENTGATE_LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` |
 | `AGENTGATE_SHUTDOWN_TIMEOUT` | `10s` | Max time graceful shutdown waits for in-flight requests |
 
@@ -181,8 +225,9 @@ If any of these fail, see §7.
   `docs/DECISIONS/OPEN_DECISIONS.md` for unresolved architectural questions — don't guess past
   them.
 - Run the checklist in §6 (CI will run the equivalent checks on your PR either way).
-- `docs/PHASES/AGENTGATE_V1_10_DAY_PARALLEL_TEAM_EXECUTION_PLAN.md` describes how work is
-  currently divided across workstreams/checkpoints.
+- `docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` describes how work is currently
+  divided across the 3 teams (Backend, AI/Gateway, Frontend) and checkpoints. The specific tickets
+  currently open are in `docs/PHASES/G7_WORKSTREAMS/`.
 
 ## 9. Where to go next
 

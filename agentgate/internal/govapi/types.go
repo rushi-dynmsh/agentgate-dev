@@ -1,6 +1,10 @@
 package govapi
 
-import "github.com/Dynamisch-LLC/agentgate/internal/policystore"
+import (
+	"time"
+
+	"github.com/Dynamisch-LLC/agentgate/internal/policystore"
+)
 
 // CreateCandidateRequest represents the payload to submit a candidate policy.
 type CreateCandidateRequest struct {
@@ -115,4 +119,70 @@ type DryRunCompareResult struct {
 type DryRunCompareResponse struct {
 	CandidateVersion string                `json:"candidate_version"`
 	Results          []DryRunCompareResult  `json:"results"`
+}
+
+// AuditEventView is the operator-facing audit record shape — a read-only
+// projection of audit.StoredRecord. canonical_payload, prev_hash, and
+// row_hash are internal chain-verification artifacts, intentionally
+// excluded per the reviewed contract (frontend/app/PROPOSED_G8_API_CONTRACTS.md):
+// the UI must never reconstruct or expose raw arguments, only the
+// already-redacted ones.
+type AuditEventView struct {
+	ID                  int64             `json:"id"`
+	WorkspaceID         string            `json:"workspace_id"`
+	SequenceNumber      int64             `json:"sequence_number"`
+	ExecutionID         string            `json:"execution_id"`
+	Timestamp           time.Time         `json:"timestamp"`
+	EventType           string            `json:"event_type"`
+	Decision            string            `json:"decision"`
+	Reason              string            `json:"reason"`
+	PrincipalAgentID    string            `json:"principal_agent_id"`
+	PrincipalRoles      []string          `json:"principal_roles"`
+	PrincipalOnBehalfOf string            `json:"principal_on_behalf_of"`
+	ToolBackendID       string            `json:"tool_backend_id"`
+	ToolName            string            `json:"tool_name"`
+	ToolRisk            string            `json:"tool_risk"`
+	PolicyVersion       string            `json:"policy_version"`
+	PolicyHash          string            `json:"policy_hash"`
+	RedactedArguments   map[string]string `json:"redacted_arguments"`
+}
+
+// AuditEventsResponse is the response for GET .../audit-events. NextBeforeSequence
+// is present whenever at least one event was returned, letting the caller page
+// backward by resending this value as the next request's before_sequence — an
+// empty events list is the signal that there are no more pages.
+type AuditEventsResponse struct {
+	WorkspaceID        string           `json:"workspace_id"`
+	Events             []AuditEventView `json:"events"`
+	NextBeforeSequence *int64           `json:"next_before_sequence,omitempty"`
+}
+
+// ToolIDView mirrors toolregistry.ToolID for JSON purposes — govapi does not
+// import toolregistry's own JSON tags (it has none; the struct is Go-only),
+// so this is a small, deliberate, explicit projection rather than reuse.
+type ToolIDView struct {
+	BackendID string `json:"backend_id"`
+	ToolName  string `json:"tool_name"`
+}
+
+// ToolView is the operator-facing tool inventory shape — a read-only
+// projection of toolregistry.GovernanceRecord. DriftStatus is intentionally
+// omitted: Registry.List() never computes it (no live fingerprint exists for
+// a bulk listing), so surfacing it here would imply a check that never ran.
+type ToolView struct {
+	ToolID                ToolIDView `json:"tool_id"`
+	Known                 bool       `json:"known"`
+	Risk                  string     `json:"risk"`
+	RegisteredFingerprint string     `json:"registered_fingerprint"`
+}
+
+// ToolsResponse is the response for GET .../tools. Source is always
+// "static_configuration": this registry is a static, startup-loaded list —
+// it does not discover tools from live traffic (see toolregistry.Registry.List's
+// own doc comment). An unclassified live tool still fails closed at
+// enforcement time; it simply never appears in this listing.
+type ToolsResponse struct {
+	WorkspaceID string     `json:"workspace_id"`
+	Source      string     `json:"source"`
+	Tools       []ToolView `json:"tools"`
 }

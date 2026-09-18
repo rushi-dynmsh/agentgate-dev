@@ -1,7 +1,7 @@
 # AgentGate — Open Decisions
 
-**Status:** Active — O-001, O-004 open; O-002, O-003, O-005, O-006, O-007, O-008 resolved
-**Date:** 2026-08-22 (Updated 2026-09-16)
+**Status:** Active — O-001, O-004 open; O-002, O-003, O-005, O-006, O-007, O-008, O-009 resolved
+**Date:** 2026-08-22 (Updated 2026-09-18)
 
 This file contains unresolved questions that may affect architecture or implementation.
 
@@ -48,6 +48,27 @@ AgentGate should own an execution/correlation identifier for audit, future aggre
 **Current action:** Define as part of the request-context model.
 
 ## Resolved
+
+### O-009 — Production UI framework disposition (resolved 2026-09-18, by consolidation)
+
+**Priority was:** Medium
+
+**Original question:** `frontend/src` deliberately left the production UI framework unchosen. A
+teammate independently built `admin-ui/` (React/Vite, PR #3, 2026-09-18 morning) against that
+contract layer. Hours later, a second teammate — working from the G7 Frontend ticket
+(`docs/PHASES/G7_WORKSTREAMS/03_FRONTEND_G7.md`) but apparently without pulling latest
+`development` first — independently built a second, separate app at `frontend/app/` (PR #5/#6,
+2026-09-18 evening), whose own doc stated "there is no separate `admin-ui/` directory in this
+checkout." Two competing implementations existed simultaneously in `development` — the exact
+silent-drift risk this decision was recorded to prevent.
+
+**Resolution:** `admin-ui/` removed; `frontend/app/` is the production UI going forward. Rationale:
+`frontend/app/` already had committed automated test coverage (`ActivatePolicyPage.test.tsx`,
+`PoliciesListPage.test.tsx`, `decision-fixtures.test.ts`, `policy-workflow.test.ts`) and its own
+`PROPOSED_G8_API_CONTRACTS.md` — both further along than `admin-ui/` was at the point of decision.
+Not a judgment that `admin-ui/`'s work was lower quality; it was a straightforward "one of these
+has to go" call made in favor of the more-progressed option. See
+`docs/PHASES/G7_WORKSTREAMS/03_FRONTEND_G7.md` for the corrected, `frontend/app/`-targeted ticket.
 
 ### O-008 — ext_authz transport mapping to decision.Request contract (resolved 2026-09-16, G6 Phase 1)
 
