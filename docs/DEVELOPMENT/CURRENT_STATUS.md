@@ -1,6 +1,6 @@
 # AgentGate — Current Development Status
 
-**Last updated:** 2026-09-16
+**Last updated:** 2026-09-18
 
 This file states only what is true *right now*. It is rewritten in place, not appended to — for history, see each checkpoint's own `CLOSURE_SUMMARY.md` in `docs/PHASES/G{N}_WORKSTREAMS/` or `git log`. Full navigation: `docs/README.md`.
 
@@ -8,7 +8,7 @@ This file states only what is true *right now*. It is rewritten in place, not ap
 
 ## Where we are
 
-**Strategy in force:** [`docs/PHASES/AGENTGATE_V1_10_DAY_PARALLEL_TEAM_EXECUTION_PLAN.md`](../PHASES/AGENTGATE_V1_10_DAY_PARALLEL_TEAM_EXECUTION_PLAN.md) (parallel workstreams, gated by checkpoints).
+**Strategy in force:** [`docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md`](../PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md) — 3 strictly independent teams (Backend, AI/Gateway, Frontend), superseding the 5-workstream gated model now that G1–G6 (its entire critical path) are closed. Checkpoint numbering (G7, G8, ...) continues unbroken; a checkpoint no longer requires every team to close together (see that plan's §4).
 
 ### Checkpoint Milestones
 
@@ -18,7 +18,8 @@ This file states only what is true *right now*. It is rewritten in place, not ap
 - **G4 — Governance Workflow Integration: PASS / CLOSED / FROZEN** (2026-09-14). Mutation audit events (`internal/auditevents`), governance-to-decision integration service (`internal/governanceintegration`, active-vs-candidate dry-run compare), `POST .../policies/{version}/dryrun` REST endpoint, frontend dry-run models/client/views, `g4integration` QA suite (8 DoD invariants), and `deploy/g4` E2E compose topology. Formally approved by Lead Architect 2026-09-14.
 - **G5 — Durable Audit Boundary: PASS / CLOSED / FROZEN** (2026-09-14). Append-only `audit_events` persistence in PostgreSQL (`internal/audit`), tamper-evident SHA-256 row chaining (`prev_hash` + `row_hash`), independent out-of-process `ChainVerifier`, pre-persistence argument redaction (`redact.go`), fail-closed audit enforcement (audit failure => decision `DENY`, resolving O-002), database immutability trigger (`prevent_audit_modification`), database privilege separation (`agentgate_app` vs `agentgate_migrator`), `g5audit` QA suite (9 DoD invariants), and `deploy/g5` reproducible topology. Formally approved by Lead Architect 2026-09-14.
 - **G6 — Real MCP End-to-End Enforcement: PASS / CLOSED / FROZEN** (2026-09-16). Lead Architect verdict recorded 2026-09-16. Envoy v3 `ext_authz` gRPC service (`internal/authz`), JSON-RPC 2.0 tool call adapter, trusted gateway identity metadata extraction, `TrustedWorkspaceResolver`, durable PostgreSQL audit with SHA-256 row chaining, adaptation-failure DENY auditing, live `agentgateway:v1.4.0` integration, independent black-box E2E enforcement suite (`qa/g6enforcement`, 12/12 DoD scenarios passing, live outage fail-closed verified, live service recovery verified), and G4-aligned credential hygiene in `deploy/g6`. Formally approved by Lead Architect 2026-09-16.
-- **Next Checkpoint: G7 — Downstream Scoped Identity & Token Exchange** (O-001 concrete implementation: downstream scoped MCP credentials, caller/on-behalf-of identity propagation without token passthrough).
+- **Admin UI merged** (2026-09-18, PR #3 from a teammate's independent fork): `admin-ui/` — a React/Vite prototype consuming the frozen `frontend/src` contract layer. Built against a G1–G4 understanding of the backend; see [`AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md`](../PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md) §3 for the exact consistency remediation this requires.
+- **Next Checkpoint: G7 — Downstream Scoped Identity & Realistic Backend Integration** (O-001 concrete implementation, paired with the AI/Gateway team's realistic demonstration system). See the 3-team plan linked above.
 
 ---
 
@@ -45,6 +46,13 @@ This file states only what is true *right now*. It is rewritten in place, not ap
 ### Frontend contract layer (`frontend/`)
 - Framework-agnostic TypeScript library (`src/api/governanceClient.ts`, `src/models/`, `src/state/`, `src/view/`) with full Vitest test coverage (63 tests across 7 suites) for governance, dry-run comparison, and rollback rendering.
 
+### Admin UI (`admin-ui/`)
+- React/Vite prototype consuming the `frontend/src` contract layer directly (never reimplements
+  it). Policies list/create/validate/dry-run/activate/rollback and the Decision Tester are real
+  against the live backend; Dashboard, Tools & Resources, Identities, and Audit Logs are
+  deliberately mock-backed pending read APIs that don't exist yet (see the 3-team plan §3).
+  Admin-token login gate is explicitly a UX gate, not a security boundary.
+
 ### Deploy environments (`deploy/`)
 - `deploy/g3/`: Reproducible Postgres container + readiness probe + migration verification script.
 - `deploy/g4/`: Integrated governance-to-decision E2E topology with curl lifecycle runbook.
@@ -66,7 +74,10 @@ This file states only what is true *right now*. It is rewritten in place, not ap
 
 - Downstream credential mechanism & token exchange (O-001, Gate G7).
 - Supported MCP revision multi-version matrix (O-004).
-- Shipped UI application (frontend is currently contract/view layer only).
+- A realistic (non-toy) demonstration deployment — `deploy/g6/` proves enforcement against a toy
+  `probe-mcp` counter; a real/realistic backend is Gate G7's AI/Gateway-team mandate.
+- Read-only REST APIs for durable audit query and tool-registry listing (Gate G8) — the admin-ui's
+  Audit and Tools screens are intentionally still mock-backed until these exist.
 
 ---
 

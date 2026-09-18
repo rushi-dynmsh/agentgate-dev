@@ -110,12 +110,16 @@ docs/
 │                                                 it isn't lost
 │
 ├── PHASES/
+│   ├── AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md
+│   │                                             [ACTIVE STRATEGY] 3 independent teams (Backend,
+│   │                                             AI/Gateway, Frontend) — the plan actually in
+│   │                                             force right now, since 2026-09-18
 │   ├── AGENTGATE_V1_10_DAY_PARALLEL_TEAM_EXECUTION_PLAN.md
-│   │                                             [ACTIVE STRATEGY] parallel workstreams gated by
-│   │                                             checkpoints (G1, G2, ... GN) — the plan actually
-│   │                                             in force right now
+│   │                                             [superseded, kept] 5-workstream gated model that
+│   │                                             carried G1–G6 to closure; superseded once its
+│   │                                             critical path (G1–G6) froze
 │   ├── AGENTGATE_V1_15_DAY_PRODUCTION_PLAN.md   [superseded, kept] sequential 15-day plan;
-│   │                                             superseded by the parallel plan above after its
+│   │                                             superseded by the 10-day parallel plan after its
 │   │                                             own Day 1/Day 2 completed
 │   ├── DAY-01-TASK-01.md                        [complete, kept] the Day-1 task spec that
 │   │                                             produced PRODUCTION-INVARIANTS.md — historical
@@ -130,12 +134,10 @@ docs/
 │   ├── G3_WORKSTREAMS/                          [CLOSED CHECKPOINT — G3: PASS/CLOSED/FROZEN, 2026-09-13]
 │   ├── G4_WORKSTREAMS/                          [CLOSED CHECKPOINT — G4: PASS/CLOSED/FROZEN, 2026-09-14]
 │   ├── G5_WORKSTREAMS/                          [CLOSED CHECKPOINT — G5: PASS/CLOSED/FROZEN, 2026-09-14]
-│   ├── G6_WORKSTREAMS/                          [ACTIVE CHECKPOINT — G6: IN PROGRESS] Real MCP Enforcement Gate
-│   │   ├── 00_G6_CHECKPOINT_REFERENCE.md        shared definition-of-done and security invariants
-│   │   ├── 01_GATEWAY_MCP_G6.md                 Workstream 1 task specification
-│   │   ├── 02_GO_BACKEND_G6.md                  Workstream 2 task specification
-│   │   ├── 03_QA_SECURITY_G6.md                 Workstream 3 task specification
-│   │   └── 04_DEVOPS_G6.md                      Workstream 4 task specification
+│   ├── G6_WORKSTREAMS/                          [CLOSED CHECKPOINT — G6: PASS/CLOSED/FROZEN, 2026-09-16]
+│   │                                             Real MCP End-to-End Enforcement — the last
+│   │                                             checkpoint run under the superseded 5-workstream
+│   │                                             model. See its `CLOSURE_SUMMARY.md`.
 │   │
 │   └── archive/                                 [historical — see docs/README.md kind 6]
 │       ├── MASTER_PLAN.md                       original Phase 0-7 plan; superseded after Phase 0
@@ -165,7 +167,7 @@ docs/
 - **"What are we building and why?"** → `docs/PROJECT_DEFINITION.md`
 - **"What's the state of things today?"** → `docs/DEVELOPMENT/CURRENT_STATUS.md`
 - **"What plan are we actually following?"** → the strategy doc with no superseded banner —
-  currently `docs/PHASES/AGENTGATE_V1_10_DAY_PARALLEL_TEAM_EXECUTION_PLAN.md`
+  currently `docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md`
 - **"What happened at G1 / G2 / ...?"** → that checkpoint's `CLOSURE_SUMMARY.md` (once written),
   or the full detail in its `docs/PHASES/G{N}_WORKSTREAMS/` folder
 - **"What's the frozen authorization contract?"** → `docs/PHASES/G1_WORKSTREAMS/GO_BACKEND_G1_CONTRACT.md`
