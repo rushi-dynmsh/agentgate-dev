@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -56,8 +58,7 @@ func resetBackendCount(t *testing.T) {
 	t.Helper()
 	resp, err := http.Post(getBackendURL()+"/_g6/reset", "application/json", nil)
 	if err != nil {
-		t.Logf("Notice: live backend not reachable at %s: %v (skipping live reset)", getBackendURL(), err)
-		return
+		t.Fatalf("failed to reset backend count at %s: %v", getBackendURL(), err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -80,6 +81,9 @@ func getBackendCount(t *testing.T) int {
 	return countResp.Count
 }
 
+// isLiveGatewayAvailable reports whether the deploy/g6 Docker topology's probe
+// backend is reachable. It gates the *_LiveE2E test functions below, which
+// each call skipIfLiveUnavailable to skip loudly (not silently) when it isn't.
 func isLiveGatewayAvailable() bool {
 	client := &http.Client{Timeout: 500 * time.Millisecond}
 	resp, err := client.Get(getBackendURL() + "/healthz")
@@ -88,6 +92,18 @@ func isLiveGatewayAvailable() bool {
 	}
 	_ = resp.Body.Close()
 	return resp.StatusCode == http.StatusOK
+}
+
+// skipIfLiveUnavailable skips the calling test with a clear, actionable message
+// when the live deploy/g6 topology isn't reachable, instead of silently
+// substituting a different (in-process) code path — see G7 Task A closeout.
+func skipIfLiveUnavailable(t *testing.T) {
+	t.Helper()
+	if !isLiveGatewayAvailable() {
+		t.Skipf("SKIPPED: no live gateway/backend reachable at %s — start the deploy/g6 "+
+			"docker-compose topology (or set AGENTGATE_BACKEND_COUNT_URL) to run this live E2E "+
+			"suite; see deploy/g6/README.md", getBackendURL())
+	}
 }
 
 func sendMCPRequest(url string, headers map[string]string, body []byte) (int, string, error) {
@@ -114,6 +130,25 @@ func sendMCPRequest(url string, headers map[string]string, body []byte) (int, st
 	return resp.StatusCode, string(respBytes), nil
 }
 
+// jwtMetadata builds the MetadataContext an in-process test must set to
+// establish identity. internal/authz.Adapter.extractClaims reads identity
+// ONLY from Attributes.MetadataContext.FilterMetadata["envoy.filters.http.jwt_authn"]
+// (agentgateway's post-verification JWT claims) — never from HTTP headers
+// (docs/SECURITY/PRODUCTION-INVARIANTS.md; adapter.go's own comment: "Unverified
+// client headers ... MUST NEVER be trusted as authenticated identity"). A test
+// that sets only Headers for identity fields (x-agent-id, x-roles, etc.) is
+// silently testing "missing identity" in the unit harness, not whatever
+// specific violation it names — found while fixing G7 Task A; corrected for
+// every scenario below that needs to reach a check *past* identity mapping.
+func jwtMetadata(claims map[string]any) *corev3.Metadata {
+	jwtClaims, _ := structpb.NewStruct(claims)
+	return &corev3.Metadata{
+		FilterMetadata: map[string]*structpb.Struct{
+			"envoy.filters.http.jwt_authn": jwtClaims,
+		},
+	}
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // In-Process Checkpoint Harness for 100% Deterministic Scenario Verification
 // ─────────────────────────────────────────────────────────────────────────────
@@ -121,10 +156,24 @@ func sendMCPRequest(url string, headers map[string]string, body []byte) (int, st
 type inProcessHarness struct {
 	server       *authz.Server
 	toolReg      *toolregistry.Registry
+	evaluator    audit.DecisionEvaluator
 	backendCalls int
 }
 
 func setupInProcessHarness(t *testing.T) *inProcessHarness {
+	t.Helper()
+	eng, err := decision.NewEngine([]byte(fixturepolicy.CedarSource))
+	if err != nil {
+		t.Fatalf("setup cedar engine: %v", err)
+	}
+	return setupInProcessHarnessWithEvaluator(t, &staticEvaluator{eng: eng})
+}
+
+// setupInProcessHarnessWithEvaluator builds the same adapter/registry topology as
+// setupInProcessHarness but lets the caller substitute the decision evaluator —
+// used by TestScenario07_AgentGateUnavailable_Unit to simulate a genuine
+// decision-service outage rather than asserting on an unused local variable.
+func setupInProcessHarnessWithEvaluator(t *testing.T, evaluator audit.DecisionEvaluator) *inProcessHarness {
 	t.Helper()
 
 	mapper, err := identity.NewMapper(identity.MapperConfig{
@@ -175,27 +224,48 @@ func setupInProcessHarness(t *testing.T) *inProcessHarness {
 		},
 	})
 
-	eng, err := decision.NewEngine([]byte(fixturepolicy.CedarSource))
-	if err != nil {
-		t.Fatalf("setup cedar engine: %v", err)
-	}
-
 	memStore := audit.NewMemoryStore()
-	auditSvc := audit.NewAuditedDecisionService(&staticEvaluator{eng: eng}, memStore, audit.NewRedactor("", nil))
+	auditSvc := audit.NewAuditedDecisionService(evaluator, memStore, audit.NewRedactor("", nil))
 	srv := authz.NewServer(adapter, auditSvc)
 
 	return &inProcessHarness{
-		server:  srv,
-		toolReg: toolReg,
+		server:    srv,
+		toolReg:   toolReg,
+		evaluator: evaluator,
 	}
 }
 
+// staticEvaluator evaluates against a fixed Cedar engine and records the last
+// decision.Request it received, so tests can assert on exactly what reached
+// policy evaluation (e.g. that an undeclared argument never leaked into it).
 type staticEvaluator struct {
 	eng *decision.Engine
+
+	mu      sync.Mutex
+	lastReq decision.Request
 }
 
 func (s *staticEvaluator) EvaluateWithActivePolicy(_ context.Context, _ string, req decision.Request) (decision.Result, error) {
+	s.mu.Lock()
+	s.lastReq = req
+	s.mu.Unlock()
 	return s.eng.Evaluate(req), nil
+}
+
+func (s *staticEvaluator) LastRequest() decision.Request {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastReq
+}
+
+// failingEvaluator simulates AgentGate's core decision path being genuinely
+// unavailable (Cedar unreachable, database down, process crashed) — used to
+// verify Scenario 7's real requirement: a decision-evaluation failure must
+// deny, never implicitly allow.
+type failingEvaluator struct{}
+
+func (failingEvaluator) EvaluateWithActivePolicy(_ context.Context, _ string, _ decision.Request) (decision.Result, error) {
+	return decision.Result{}, errors.New("simulated AgentGate outage: decision engine unreachable")
 }
 
 func (h *inProcessHarness) executeCall(req *authv3.CheckRequest) (bool, int32) {
@@ -212,25 +282,28 @@ func (h *inProcessHarness) executeCall(req *authv3.CheckRequest) (bool, int32) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 12 Mandatory Gate G6 Scenarios
+//
+// Each scenario has two independent test functions:
+//   - TestScenarioNN_<Name>       — always runs in-process; fast, deterministic,
+//                                    proves the adapter/decision/audit logic in
+//                                    isolation from any network topology.
+//   - TestScenarioNN_<Name>_LiveE2E — proves the same behavior through the real
+//                                    agentgateway -> AgentGate -> probe-mcp
+//                                    topology. Skips loudly (t.Skip, with a
+//                                    clear message) rather than silently
+//                                    falling back when that topology isn't up.
+//
+// Before G7 Task A, these were one function each: the live assertions were
+// wrapped in "if isLiveGatewayAvailable()" and unconditionally followed by the
+// in-process assertions, so every run reported 12/12 passing with zero live
+// coverage in CI or a bare `go test ./...`, with no indication that the live
+// path had been skipped rather than proven. See
+// docs/PHASES/G7_WORKSTREAMS/01_BACKEND_G7.md §2 for the full finding.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Scenario 1: Authenticated + allowed known tool -> Backend count = 1
-func TestScenario01_AuthenticatedAllowedKnownTool(t *testing.T) {
-	if isLiveGatewayAvailable() {
-		resetBackendCount(t)
-		body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"read_status","arguments":{"verbose":true}}}`
-		status, _, err := sendMCPRequest(getGatewayURL(), map[string]string{
-			"x-agent-id": "agent-reader",
-			"x-roles":    "reader",
-		}, []byte(body))
-		if err != nil || status != http.StatusOK {
-			t.Fatalf("expected HTTP 200 on allowed tool, got status %d err %v", status, err)
-		}
-		if count := getBackendCount(t); count != 1 {
-			t.Fatalf("expected backend count 1, got %d", count)
-		}
-	}
 
+func TestScenario01_AuthenticatedAllowedKnownTool(t *testing.T) {
 	h := setupInProcessHarness(t)
 	jwtClaims, _ := structpb.NewStruct(map[string]any{
 		"sub":          "agent-reader",
@@ -257,32 +330,41 @@ func TestScenario01_AuthenticatedAllowedKnownTool(t *testing.T) {
 	}
 }
 
-// Scenario 2: Authenticated + denied known tool -> Backend count = 0
-func TestScenario02_AuthenticatedDeniedKnownTool(t *testing.T) {
-	if isLiveGatewayAvailable() {
-		resetBackendCount(t)
-		body := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"admin_action"}}`
-		status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-			"x-agent-id": "agent-reader",
-			"x-roles":    "reader",
-		}, []byte(body))
-		if status != http.StatusForbidden {
-			t.Fatalf("expected HTTP 403 on denied tool, got status %d", status)
-		}
-		if count := getBackendCount(t); count != 0 {
-			t.Fatalf("security violation: denied tool reached backend count=%d", count)
-		}
+func TestScenario01_AuthenticatedAllowedKnownTool_LiveE2E(t *testing.T) {
+	skipIfLiveUnavailable(t)
+	resetBackendCount(t)
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"read_status","arguments":{"verbose":true}}}`
+	status, _, err := sendMCPRequest(getGatewayURL(), map[string]string{
+		"x-agent-id": "agent-reader",
+		"x-roles":    "reader",
+	}, []byte(body))
+	if err != nil || status != http.StatusOK {
+		t.Fatalf("expected HTTP 200 on allowed tool, got status %d err %v", status, err)
 	}
+	if count := getBackendCount(t); count != 1 {
+		t.Fatalf("expected backend count 1, got %d", count)
+	}
+}
 
+// Scenario 2: Authenticated + denied known tool -> Backend count = 0
+
+func TestScenario02_AuthenticatedDeniedKnownTool(t *testing.T) {
 	h := setupInProcessHarness(t)
 	req := &authv3.CheckRequest{
 		Attributes: &authv3.AttributeContext{
 			Request: &authv3.AttributeContext_Request{
 				Http: &authv3.AttributeContext_HttpRequest{
-					Headers: map[string]string{"x-agent-id": "agent-reader", "x-roles": "reader"},
-					Body:    `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"admin_action"}}`,
+					Body: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"admin_action"}}`,
 				},
 			},
+			// Valid, non-ambiguous identity — this scenario proves an
+			// *authenticated* reader is denied by policy for a destructive
+			// tool, not merely denied for lacking identity.
+			MetadataContext: jwtMetadata(map[string]any{
+				"sub":          "agent-reader",
+				"roles":        "reader",
+				"workspace_id": "default",
+			}),
 		},
 	}
 	allowed, code := h.executeCall(req)
@@ -291,32 +373,40 @@ func TestScenario02_AuthenticatedDeniedKnownTool(t *testing.T) {
 	}
 }
 
-// Scenario 3: Unknown tool -> Backend count = 0
-func TestScenario03_UnknownTool(t *testing.T) {
-	if isLiveGatewayAvailable() {
-		resetBackendCount(t)
-		body := `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"completely_unknown_op"}}`
-		status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-			"x-agent-id": "agent-reader",
-			"x-roles":    "reader",
-		}, []byte(body))
-		if status != http.StatusForbidden {
-			t.Fatalf("expected HTTP 403 on unknown tool, got status %d", status)
-		}
-		if count := getBackendCount(t); count != 0 {
-			t.Fatalf("security violation: unknown tool reached backend count=%d", count)
-		}
+func TestScenario02_AuthenticatedDeniedKnownTool_LiveE2E(t *testing.T) {
+	skipIfLiveUnavailable(t)
+	resetBackendCount(t)
+	body := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"admin_action"}}`
+	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
+		"x-agent-id": "agent-reader",
+		"x-roles":    "reader",
+	}, []byte(body))
+	if status != http.StatusForbidden {
+		t.Fatalf("expected HTTP 403 on denied tool, got status %d", status)
 	}
+	if count := getBackendCount(t); count != 0 {
+		t.Fatalf("security violation: denied tool reached backend count=%d", count)
+	}
+}
 
+// Scenario 3: Unknown tool -> Backend count = 0
+
+func TestScenario03_UnknownTool(t *testing.T) {
 	h := setupInProcessHarness(t)
 	req := &authv3.CheckRequest{
 		Attributes: &authv3.AttributeContext{
 			Request: &authv3.AttributeContext_Request{
 				Http: &authv3.AttributeContext_HttpRequest{
-					Headers: map[string]string{"x-agent-id": "agent-reader", "x-roles": "reader"},
-					Body:    `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"completely_unknown_op"}}`,
+					Body: `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"completely_unknown_op"}}`,
 				},
 			},
+			// Valid identity — this scenario proves the *tool registry
+			// lookup* denies, not that identity was missing.
+			MetadataContext: jwtMetadata(map[string]any{
+				"sub":          "agent-reader",
+				"roles":        "reader",
+				"workspace_id": "default",
+			}),
 		},
 	}
 	allowed, code := h.executeCall(req)
@@ -325,20 +415,25 @@ func TestScenario03_UnknownTool(t *testing.T) {
 	}
 }
 
-// Scenario 4: Missing identity / unauthenticated -> Backend count = 0
-func TestScenario04_MissingIdentity(t *testing.T) {
-	if isLiveGatewayAvailable() {
-		resetBackendCount(t)
-		body := `{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"read_status"}}`
-		status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{}, []byte(body))
-		if status != http.StatusForbidden {
-			t.Fatalf("expected HTTP 403 on missing identity, got status %d", status)
-		}
-		if count := getBackendCount(t); count != 0 {
-			t.Fatalf("security violation: unauthenticated call reached backend count=%d", count)
-		}
+func TestScenario03_UnknownTool_LiveE2E(t *testing.T) {
+	skipIfLiveUnavailable(t)
+	resetBackendCount(t)
+	body := `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"completely_unknown_op"}}`
+	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
+		"x-agent-id": "agent-reader",
+		"x-roles":    "reader",
+	}, []byte(body))
+	if status != http.StatusForbidden {
+		t.Fatalf("expected HTTP 403 on unknown tool, got status %d", status)
 	}
+	if count := getBackendCount(t); count != 0 {
+		t.Fatalf("security violation: unknown tool reached backend count=%d", count)
+	}
+}
 
+// Scenario 4: Missing identity / unauthenticated -> Backend count = 0
+
+func TestScenario04_MissingIdentity(t *testing.T) {
 	h := setupInProcessHarness(t)
 	req := &authv3.CheckRequest{
 		Attributes: &authv3.AttributeContext{
@@ -355,37 +450,40 @@ func TestScenario04_MissingIdentity(t *testing.T) {
 	}
 }
 
-// Scenario 5: Ambiguous identity (on_behalf_of == agent_id) -> Backend count = 0
-func TestScenario05_AmbiguousIdentity(t *testing.T) {
-	if isLiveGatewayAvailable() {
-		resetBackendCount(t)
-		body := `{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"read_status"}}`
-		status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-			"x-agent-id":     "agent-same",
-			"x-on-behalf-of": "agent-same",
-			"x-roles":        "reader",
-		}, []byte(body))
-		if status != http.StatusForbidden {
-			t.Fatalf("expected HTTP 403 on ambiguous identity, got status %d", status)
-		}
-		if count := getBackendCount(t); count != 0 {
-			t.Fatalf("security violation: ambiguous identity call reached backend count=%d", count)
-		}
+func TestScenario04_MissingIdentity_LiveE2E(t *testing.T) {
+	skipIfLiveUnavailable(t)
+	resetBackendCount(t)
+	body := `{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"read_status"}}`
+	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{}, []byte(body))
+	if status != http.StatusForbidden {
+		t.Fatalf("expected HTTP 403 on missing identity, got status %d", status)
 	}
+	if count := getBackendCount(t); count != 0 {
+		t.Fatalf("security violation: unauthenticated call reached backend count=%d", count)
+	}
+}
 
+// Scenario 5: Ambiguous identity (on_behalf_of == agent_id) -> Backend count = 0
+
+func TestScenario05_AmbiguousIdentity(t *testing.T) {
 	h := setupInProcessHarness(t)
 	req := &authv3.CheckRequest{
 		Attributes: &authv3.AttributeContext{
 			Request: &authv3.AttributeContext_Request{
 				Http: &authv3.AttributeContext_HttpRequest{
-					Headers: map[string]string{
-						"x-agent-id":     "agent-same",
-						"x-on-behalf-of": "agent-same",
-						"x-roles":        "reader",
-					},
 					Body: `{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"read_status"}}`,
 				},
 			},
+			// The ambiguity is agent_id == on_behalf_of in the *authenticated*
+			// JWT claims (identity.Mapper's actual check) — client headers are
+			// never consulted for identity, so setting only headers here would
+			// deny for missing identity, not for the ambiguity this proves.
+			MetadataContext: jwtMetadata(map[string]any{
+				"sub":          "agent-same",
+				"obo":          "agent-same",
+				"roles":        "reader",
+				"workspace_id": "default",
+			}),
 		},
 	}
 	allowed, code := h.executeCall(req)
@@ -394,23 +492,26 @@ func TestScenario05_AmbiguousIdentity(t *testing.T) {
 	}
 }
 
-// Scenario 6: Malformed authorization request (non-tool call) -> Backend count = 0
-func TestScenario06_MalformedAuthzRequest_NonToolMethod(t *testing.T) {
-	if isLiveGatewayAvailable() {
-		resetBackendCount(t)
-		body := `{"jsonrpc":"2.0","id":6,"method":"initialize","params":{"protocolVersion":"2026-07-28"}}`
-		status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-			"x-agent-id": "agent-reader",
-			"x-roles":    "reader",
-		}, []byte(body))
-		if status != http.StatusForbidden {
-			t.Fatalf("expected non-tool call to be denied by authz, got %d", status)
-		}
-		if count := getBackendCount(t); count != 0 {
-			t.Fatalf("security violation: unauthorized non-tool call reached backend count=%d", count)
-		}
+func TestScenario05_AmbiguousIdentity_LiveE2E(t *testing.T) {
+	skipIfLiveUnavailable(t)
+	resetBackendCount(t)
+	body := `{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"read_status"}}`
+	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
+		"x-agent-id":     "agent-same",
+		"x-on-behalf-of": "agent-same",
+		"x-roles":        "reader",
+	}, []byte(body))
+	if status != http.StatusForbidden {
+		t.Fatalf("expected HTTP 403 on ambiguous identity, got status %d", status)
 	}
+	if count := getBackendCount(t); count != 0 {
+		t.Fatalf("security violation: ambiguous identity call reached backend count=%d", count)
+	}
+}
 
+// Scenario 6: Malformed authorization request (non-tool call) -> Backend count = 0
+
+func TestScenario06_MalformedAuthzRequest_NonToolMethod(t *testing.T) {
 	h := setupInProcessHarness(t)
 	req := &authv3.CheckRequest{
 		Attributes: &authv3.AttributeContext{
@@ -428,49 +529,89 @@ func TestScenario06_MalformedAuthzRequest_NonToolMethod(t *testing.T) {
 	}
 }
 
-// Scenario 7: AgentGate unavailable -> Fail closed, Backend count = 0
-func TestScenario07_AgentGateUnavailable(t *testing.T) {
-	// Test fail closed when Server is nil or unavailable
-	var nilServer *authz.Server
-	if nilServer != nil {
-		t.Fatal("expected nil server")
+func TestScenario06_MalformedAuthzRequest_NonToolMethod_LiveE2E(t *testing.T) {
+	skipIfLiveUnavailable(t)
+	resetBackendCount(t)
+	body := `{"jsonrpc":"2.0","id":6,"method":"initialize","params":{"protocolVersion":"2026-07-28"}}`
+	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
+		"x-agent-id": "agent-reader",
+		"x-roles":    "reader",
+	}, []byte(body))
+	if status != http.StatusForbidden {
+		t.Fatalf("expected non-tool call to be denied by authz, got %d", status)
 	}
+	if count := getBackendCount(t); count != 0 {
+		t.Fatalf("security violation: unauthorized non-tool call reached backend count=%d", count)
+	}
+}
 
-	// An unreachable endpoint or connection reset causes gateway to fail closed
-	client := &http.Client{Timeout: 1 * time.Second}
-	_, err := client.Post("http://127.0.0.1:9099/unreachable", "application/json", nil)
-	if err == nil {
-		t.Fatal("expected connection failure to unreachable service")
+// Scenario 7: AgentGate unavailable -> Fail closed, Backend count = 0
+//
+// Before G7 Task A this test asserted `var nilServer *authz.Server; if
+// nilServer != nil { t.Fatal(...) }` — a tautology on a variable that is
+// never assigned anything but nil, followed by an unrelated raw-socket
+// connection-refused check against an address nothing in this codebase
+// serves. It could not fail and proved nothing about AgentGate's actual
+// fail-closed behavior. This version wires a DecisionEvaluator that returns
+// a genuine error (simulating the Cedar/database layer being unreachable)
+// through the real production path — authz.Server -> audit.AuditedDecisionService
+// -> the failing evaluator — and asserts the call is denied, not allowed.
+//
+// Note for AI/Gateway team (G7 Task A, environment half): this is the
+// Go-level unit proof that a decision-evaluation failure denies. The live-
+// topology equivalent — physically stopping the agentgate process and
+// confirming agentgateway's ext_authz callout fails closed — belongs in
+// deploy/g6's live matrix, not this Go unit test; it needs real process
+// orchestration this file has no access to.
+func TestScenario07_AgentGateUnavailable(t *testing.T) {
+	h := setupInProcessHarnessWithEvaluator(t, failingEvaluator{})
+
+	jwtClaims, _ := structpb.NewStruct(map[string]any{
+		"sub":          "agent-reader",
+		"roles":        "reader",
+		"workspace_id": "default",
+	})
+	req := &authv3.CheckRequest{
+		Attributes: &authv3.AttributeContext{
+			Request: &authv3.AttributeContext_Request{
+				Http: &authv3.AttributeContext_HttpRequest{
+					// A well-formed, otherwise-allowed request: if the evaluator's
+					// outage were not fail-closed, this would return ALLOW.
+					Body: `{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"read_status","arguments":{"verbose":true}}}`,
+				},
+			},
+			MetadataContext: &corev3.Metadata{
+				FilterMetadata: map[string]*structpb.Struct{
+					"envoy.filters.http.jwt_authn": jwtClaims,
+				},
+			},
+		},
+	}
+	allowed, code := h.executeCall(req)
+	if allowed || code != int32(codes.PermissionDenied) || h.backendCalls != 0 {
+		t.Fatalf("security violation: decision-service outage was not denied, got allowed=%v code=%d backendCount=%d", allowed, code, h.backendCalls)
 	}
 }
 
 // Scenario 8: Policy evaluation failure (broken role without amount) -> Backend count = 0
-func TestScenario08_PolicyEvaluationFailure(t *testing.T) {
-	if isLiveGatewayAvailable() {
-		resetBackendCount(t)
-		// Broken role deliberately triggers Cedar evaluation error when context.amount is absent
-		body := `{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"read_status"}}`
-		status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-			"x-agent-id": "agent-broken",
-			"x-roles":    "broken",
-		}, []byte(body))
-		if status != http.StatusForbidden {
-			t.Fatalf("expected HTTP 403 on policy evaluation failure, got status %d", status)
-		}
-		if count := getBackendCount(t); count != 0 {
-			t.Fatalf("security violation: policy evaluation failure reached backend count=%d", count)
-		}
-	}
 
+func TestScenario08_PolicyEvaluationFailure(t *testing.T) {
 	h := setupInProcessHarness(t)
 	req := &authv3.CheckRequest{
 		Attributes: &authv3.AttributeContext{
 			Request: &authv3.AttributeContext_Request{
 				Http: &authv3.AttributeContext_HttpRequest{
-					Headers: map[string]string{"x-agent-id": "agent-broken", "x-roles": "broken"},
-					Body:    `{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"read_status"}}`,
+					Body: `{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"read_status"}}`,
 				},
 			},
+			// Valid identity with an unrecognized role — this scenario proves
+			// Cedar's own evaluation failure denies, not a missing-identity
+			// short-circuit before Cedar is ever reached.
+			MetadataContext: jwtMetadata(map[string]any{
+				"sub":          "agent-broken",
+				"roles":        "broken",
+				"workspace_id": "default",
+			}),
 		},
 	}
 	allowed, code := h.executeCall(req)
@@ -479,39 +620,47 @@ func TestScenario08_PolicyEvaluationFailure(t *testing.T) {
 	}
 }
 
-// Scenario 9: Tool fingerprint / schema mismatch -> Backend count = 0
-func TestScenario09_ToolFingerprintMismatch(t *testing.T) {
-	if isLiveGatewayAvailable() {
-		resetBackendCount(t)
-		body := `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"read_status"}}`
-		status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-			"x-agent-id":         "agent-reader",
-			"x-roles":            "reader",
-			"x-tool-fingerprint": "mismatched_drift_fingerprint",
-		}, []byte(body))
-		if status != http.StatusForbidden {
-			t.Fatalf("expected HTTP 403 on tool fingerprint mismatch, got status %d", status)
-		}
-		if count := getBackendCount(t); count != 0 {
-			t.Fatalf("security violation: drifted tool reached backend count=%d", count)
-		}
+func TestScenario08_PolicyEvaluationFailure_LiveE2E(t *testing.T) {
+	skipIfLiveUnavailable(t)
+	resetBackendCount(t)
+	// Broken role deliberately triggers Cedar evaluation error when context.amount is absent
+	body := `{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"read_status"}}`
+	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
+		"x-agent-id": "agent-broken",
+		"x-roles":    "broken",
+	}, []byte(body))
+	if status != http.StatusForbidden {
+		t.Fatalf("expected HTTP 403 on policy evaluation failure, got status %d", status)
 	}
+	if count := getBackendCount(t); count != 0 {
+		t.Fatalf("security violation: policy evaluation failure reached backend count=%d", count)
+	}
+}
 
+// Scenario 9: Tool fingerprint / schema mismatch -> Backend count = 0
+
+func TestScenario09_ToolFingerprintMismatch(t *testing.T) {
 	h := setupInProcessHarness(t)
 
-	// drifted_tool was registered with dummy zero hash, live fingerprint check causes drift
+	// drifted_tool was registered with dummy zero hash, live fingerprint check causes drift.
+	// x-tool-fingerprint is read directly from headers by the adapter (not an
+	// identity field), so it stays as a header; identity itself must come
+	// from JWT metadata for this scenario to reach the fingerprint check at all.
 	req := &authv3.CheckRequest{
 		Attributes: &authv3.AttributeContext{
 			Request: &authv3.AttributeContext_Request{
 				Http: &authv3.AttributeContext_HttpRequest{
 					Headers: map[string]string{
-						"x-agent-id":         "agent-reader",
-						"x-roles":            "reader",
 						"x-tool-fingerprint": "1111111111111111111111111111111111111111111111111111111111111111",
 					},
 					Body: `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"drifted_tool"}}`,
 				},
 			},
+			MetadataContext: jwtMetadata(map[string]any{
+				"sub":          "agent-reader",
+				"roles":        "reader",
+				"workspace_id": "default",
+			}),
 		},
 	}
 	allowed, code := h.executeCall(req)
@@ -520,39 +669,51 @@ func TestScenario09_ToolFingerprintMismatch(t *testing.T) {
 	}
 }
 
-// Scenario 10: Malicious client-supplied classification -> Backend count = 0
-func TestScenario10_MaliciousClientClassification(t *testing.T) {
-	if isLiveGatewayAvailable() {
-		resetBackendCount(t)
-		// Attacker attempts to override risk level via client headers
-		body := `{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"admin_action"}}`
-		status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-			"x-agent-id":        "agent-reader",
-			"x-roles":           "reader",
-			"x-agentgate-risk":  "read",
-			"x-tool-risk":       "read",
-		}, []byte(body))
-		if status != http.StatusForbidden {
-			t.Fatalf("expected HTTP 403 on spoofed classification, got status %d", status)
-		}
-		if count := getBackendCount(t); count != 0 {
-			t.Fatalf("security violation: spoofed classification reached backend count=%d", count)
-		}
+func TestScenario09_ToolFingerprintMismatch_LiveE2E(t *testing.T) {
+	skipIfLiveUnavailable(t)
+	resetBackendCount(t)
+	body := `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"read_status"}}`
+	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
+		"x-agent-id":         "agent-reader",
+		"x-roles":            "reader",
+		"x-tool-fingerprint": "mismatched_drift_fingerprint",
+	}, []byte(body))
+	if status != http.StatusForbidden {
+		t.Fatalf("expected HTTP 403 on tool fingerprint mismatch, got status %d", status)
 	}
+	if count := getBackendCount(t); count != 0 {
+		t.Fatalf("security violation: drifted tool reached backend count=%d", count)
+	}
+}
 
+// Scenario 10: Malicious client-supplied classification -> Backend count = 0
+
+func TestScenario10_MaliciousClientClassification(t *testing.T) {
 	h := setupInProcessHarness(t)
 	req := &authv3.CheckRequest{
 		Attributes: &authv3.AttributeContext{
 			Request: &authv3.AttributeContext_Request{
 				Http: &authv3.AttributeContext_HttpRequest{
+					// x-agentgate-risk is an attacker-controlled header the
+					// adapter never reads for classification (verified: no
+					// reference to it in internal/authz/adapter.go) — kept here
+					// to document that it has no effect, not because it does
+					// anything. Real classification comes only from
+					// internal/toolregistry's registered risk for admin_action
+					// (destructive). Identity must be authenticated (JWT
+					// metadata, not headers) for this to prove policy denial
+					// rather than a missing-identity short-circuit.
 					Headers: map[string]string{
-						"x-agent-id":       "agent-reader",
-						"x-roles":          "reader",
 						"x-agentgate-risk": "read",
 					},
 					Body: `{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"admin_action"}}`,
 				},
 			},
+			MetadataContext: jwtMetadata(map[string]any{
+				"sub":          "agent-reader",
+				"roles":        "reader",
+				"workspace_id": "default",
+			}),
 		},
 	}
 	allowed, code := h.executeCall(req)
@@ -561,23 +722,28 @@ func TestScenario10_MaliciousClientClassification(t *testing.T) {
 	}
 }
 
-// Scenario 11: Malformed JSON / body disagreement -> Backend count = 0
-func TestScenario11_MalformedJSON(t *testing.T) {
-	if isLiveGatewayAvailable() {
-		resetBackendCount(t)
-		body := `{"jsonrpc":"2.0", broken syntax...`
-		status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-			"x-agent-id": "agent-reader",
-			"x-roles":    "reader",
-		}, []byte(body))
-		if status == http.StatusOK {
-			t.Fatalf("expected failure on broken JSON, got %d", status)
-		}
-		if count := getBackendCount(t); count != 0 {
-			t.Fatalf("security violation: malformed JSON reached backend count=%d", count)
-		}
+func TestScenario10_MaliciousClientClassification_LiveE2E(t *testing.T) {
+	skipIfLiveUnavailable(t)
+	resetBackendCount(t)
+	// Attacker attempts to override risk level via client headers
+	body := `{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"admin_action"}}`
+	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
+		"x-agent-id":       "agent-reader",
+		"x-roles":          "reader",
+		"x-agentgate-risk": "read",
+		"x-tool-risk":      "read",
+	}, []byte(body))
+	if status != http.StatusForbidden {
+		t.Fatalf("expected HTTP 403 on spoofed classification, got status %d", status)
 	}
+	if count := getBackendCount(t); count != 0 {
+		t.Fatalf("security violation: spoofed classification reached backend count=%d", count)
+	}
+}
 
+// Scenario 11: Malformed JSON / body disagreement -> Backend count = 0
+
+func TestScenario11_MalformedJSON(t *testing.T) {
 	h := setupInProcessHarness(t)
 	req := &authv3.CheckRequest{
 		Attributes: &authv3.AttributeContext{
@@ -595,29 +761,87 @@ func TestScenario11_MalformedJSON(t *testing.T) {
 	}
 }
 
-// Scenario 12: Oversized / truncated body -> Backend count = 0
-func TestScenario12_OversizedBody(t *testing.T) {
-	h := setupInProcessHarness(t)
+func TestScenario11_MalformedJSON_LiveE2E(t *testing.T) {
+	skipIfLiveUnavailable(t)
+	resetBackendCount(t)
+	body := `{"jsonrpc":"2.0", broken syntax...`
+	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
+		"x-agent-id": "agent-reader",
+		"x-roles":    "reader",
+	}, []byte(body))
+	if status == http.StatusOK {
+		t.Fatalf("expected failure on broken JSON, got %d", status)
+	}
+	if count := getBackendCount(t); count != 0 {
+		t.Fatalf("security violation: malformed JSON reached backend count=%d", count)
+	}
+}
 
-	// Oversized body > 1MB limit triggers adapter or gateway rejection
+// Scenario 12: Oversized body with an undeclared argument -> the undeclared
+// argument must never reach policy evaluation, regardless of the resulting
+// ALLOW/DENY outcome.
+//
+// Before G7 Task A this test's only real assertion was on the DENY path's
+// error code; on the ALLOW path it just called t.Log and always passed. That
+// framing assumed ALLOW was the wrong outcome — it isn't. There is no
+// request-body size limit anywhere in the Go adapter (verified: no such
+// check exists in internal/authz), and argdecl's whitelist already causes
+// undeclared arguments to be silently dropped before they can reach
+// decision.Request.Arguments (internal/argdecl's own package doc: "Undeclared
+// arguments in raw are silently ignored (never reach policy)"). So for
+// read_status (which declares only "verbose"), a huge undeclared "payload"
+// argument is expected to be ALLOWED — the actual security property is that
+// "payload" itself must never appear in what Cedar evaluated. This version
+// asserts that directly via the evaluator's captured last request, instead of
+// inferring it indirectly from an ALLOW/DENY code that can't distinguish
+// "stripped safely" from "leaked but didn't matter."
+//
+// A request body size limit is a distinct, legitimate hardening item (DoS
+// protection, not authorization correctness) — already tracked as backend
+// work in docs/PHASES/PROGRESS_AND_ROADMAP.md §3 (G10, "Request size + time
+// limits; rate limiting"). Not added here: out of this ticket's scope.
+func TestScenario12_OversizedBody(t *testing.T) {
+	eng, err := decision.NewEngine([]byte(fixturepolicy.CedarSource))
+	if err != nil {
+		t.Fatalf("setup cedar engine: %v", err)
+	}
+	evaluator := &staticEvaluator{eng: eng}
+	h := setupInProcessHarnessWithEvaluator(t, evaluator)
+
 	hugePayload := strings.Repeat("A", 1048576+100)
 	req := &authv3.CheckRequest{
 		Attributes: &authv3.AttributeContext{
 			Request: &authv3.AttributeContext_Request{
 				Http: &authv3.AttributeContext_HttpRequest{
-					Headers: map[string]string{"x-agent-id": "agent-reader", "x-roles": "reader"},
-					Body:    fmt.Sprintf(`{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"read_status","arguments":{"payload":"%s"}}}`, hugePayload),
+					Body: fmt.Sprintf(`{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"read_status","arguments":{"verbose":true,"payload":"%s"}}}`, hugePayload),
 				},
 			},
+			MetadataContext: jwtMetadata(map[string]any{
+				"sub":          "agent-reader",
+				"roles":        "reader",
+				"workspace_id": "default",
+			}),
 		},
 	}
 	allowed, code := h.executeCall(req)
-	// Undeclared payload attribute is stripped or rejected
-	if allowed && h.backendCalls > 0 {
-		// Even if allowed structurally, arguments must not leak
-		t.Log("Oversized payload rejected or sanitized")
+
+	if !allowed {
+		// Also acceptable, as long as it's a genuine policy denial, not an
+		// adapter crash — a malformed/Internal code here would itself be a bug.
+		if code != int32(codes.PermissionDenied) {
+			t.Fatalf("expected either ALLOW (undeclared arg safely stripped) or PermissionDenied, got code %d", code)
+		}
+		return
 	}
-	if !allowed && code != int32(codes.PermissionDenied) {
-		t.Fatalf("expected PermissionDenied on oversized request, got %d", code)
+
+	// The actual security property: the undeclared, oversized "payload"
+	// argument must never have reached the policy engine.
+	lastArgs := evaluator.LastRequest().Arguments
+	if _, leaked := lastArgs["payload"]; leaked {
+		t.Fatalf("security violation: undeclared oversized argument \"payload\" reached decision.Request.Arguments (leaked into policy evaluation)")
+	}
+	// The declared argument should still be present and correct.
+	if v, ok := lastArgs["verbose"]; !ok || v.String() != "true" {
+		t.Fatalf("expected declared argument \"verbose\"=true to reach policy evaluation, got %+v", lastArgs["verbose"])
 	}
 }
