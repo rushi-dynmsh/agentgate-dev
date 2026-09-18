@@ -104,6 +104,9 @@ docs/
 │   ├── SETUP.md                                 [living reference] local build/run/test guide
 │                                                 for the agentgate/ Go module
 │   ├── CI_BASELINE.md                           [living reference] what CI checks and why
+│   ├── BRANCHING_AND_MERGING.md                 [living reference] git workflow for 3-team
+│   │                                             independence model; branch naming, when to merge,
+│   │                                             cross-team coordination points
 │   └── OSS_READINESS.md                         [living backlog] what's needed before public/OSS
 │                                                 launch (license decision, community-health
 │                                                 files) — deliberately deferred, tracked here so
@@ -201,6 +204,7 @@ docs/
 - **"What security invariant governs this?"** → `docs/SECURITY/PRODUCTION-INVARIANTS.md`
 - **"How do I set up and run this locally?"** → `docs/DEVELOPMENT/SETUP.md`
 - **"What does CI check?"** → `docs/DEVELOPMENT/CI_BASELINE.md`
+- **"How should I branch and merge for this project?"** → `docs/DEVELOPMENT/BRANCHING_AND_MERGING.md`
 - **"What's left before this can be public/OSS?"** → `docs/DEVELOPMENT/OSS_READINESS.md`
 - **"Is this document still current, or old?"** → if it's under `docs/PHASES/archive/`, or it has
   a "superseded by X" banner at the top, it's history, not instruction. Everything else is
