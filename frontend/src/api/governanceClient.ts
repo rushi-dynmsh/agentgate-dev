@@ -193,7 +193,8 @@ export class HttpGovernanceClient implements GovernanceClient {
   constructor(
     baseUrl: string,
     adminToken: string,
-    fetchFn: FetchFunction = (globalThis as any).fetch
+    fetchFn: FetchFunction = (url, options) =>
+      (globalThis as unknown as { fetch: FetchFunction }).fetch(url, options)
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.adminToken = adminToken;
