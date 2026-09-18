@@ -1,0 +1,91 @@
+/*
+  AgentGate design tokens — v2.
+  Direction: "console," not "generic admin template." Top nav instead of
+  dark sidebar. Status dots instead of pill badges. Geist (the real Vercel
+  production typeface) for UI, Geist Mono for anything mechanically exact
+  (versions, hashes, IDs, decisions).
+*/
+
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap");
+
+:root {
+  /* Surface */
+  /* --ag-bg-canvas: #fafafa; */
+  --ag-bg-canvas: #f5f6fa;
+  --ag-bg-surface: #ffffff;
+  --ag-bg-topbar: #ffffff;
+  --ag-border: #e4e4e7;
+  --ag-border-soft: #f0f0f1;
+  --ag-border-strong: #d4d4d8;
+
+  /* Text */
+  --ag-text-primary: #18181b;
+  --ag-text-secondary: #71717a;
+  --ag-text-muted: #a1a1aa;
+  --ag-text-inverse: #ffffff;
+
+  /* Accent — used only for primary actions, never decoration */
+  --ag-accent: #4338ca;
+  --ag-accent-hover: #3730a3;
+  --ag-accent-soft: #e0e7ff;
+
+  /* Decision / lifecycle semantics — color carries meaning here, nowhere else */
+  --ag-allow: #15803d;
+  --ag-allow-soft: #f0fdf4;
+  --ag-deny: #b91c1c;
+  --ag-deny-soft: #fef2f2;
+  --ag-candidate: #a16207;
+  --ag-candidate-soft: #fefce8;
+  --ag-neutral: #71717a;
+  --ag-neutral-soft: #f4f4f5;
+
+  /* Type */
+  --ag-font-sans: "Geist", system-ui, -apple-system, sans-serif;
+  --ag-font-mono: "Geist Mono", ui-monospace, "IBM Plex Mono", monospace;
+
+  /* Shape — interactive elements get radius, structural ones stay flat */
+  --ag-radius-control: 6px;
+  --ag-content-width: 1180px;
+  --ag-topbar-height: 68px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--ag-font-sans);
+  font-size: 16px;
+  color: var(--ag-text-primary);
+  background: var(--ag-bg-canvas);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--ag-accent-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ag-accent);
+  outline-offset: 2px;
+}
