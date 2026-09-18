@@ -1,6 +1,6 @@
 # AgentGate — Open Decisions
 
-**Status:** Active — O-001, O-004, O-009 open; O-002, O-003, O-005, O-006, O-007, O-008 resolved
+**Status:** Active — O-001, O-004 open; O-002, O-003, O-005, O-006, O-007, O-008, O-009 resolved
 **Date:** 2026-08-22 (Updated 2026-09-18)
 
 This file contains unresolved questions that may affect architecture or implementation.
@@ -27,37 +27,6 @@ The current Technology Stack Plan targets MCP `2026-07-28`, while compatibility 
 
 **Current action:** Confirm the supported compatibility boundary before finalizing client/backend integration.
 
-## O-009 — Production UI framework disposition
-
-**Priority:** Medium
-
-**Original question:** `docs/TECH_STACK.md` and `frontend/` deliberately left the production UI
-framework unchosen — `frontend/src` is framework-agnostic contract/models/view code with no
-rendering layer by design (see `frontend/package.json`'s description and
-`frontend/src/view/decision-view.ts`'s file header). A teammate independently built `admin-ui/`
-(React/Vite) against that contract layer and it was merged into `development` on 2026-09-18
-(PR #3). Its own documentation (`admin-ui/README.md`) explicitly calls itself a "prototype/demo
-scaffold," **not** a resolution of the open framework choice.
-
-**Why this matters:** `docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §7 schedules
-ongoing Frontend-team work directly on `admin-ui/` (wiring new G8 read APIs, continued feature
-development) without that plan itself formally deciding "admin-ui is now the production UI." That
-is a reasonable, low-risk way to keep making progress — but it is drifting into becoming the de
-facto answer without anyone actually deciding it, which is exactly the kind of silent architecture
-change `CLAUDE.md` says not to do.
-
-**Current action:** Lead Architect rules on whether `admin-ui` (React/Vite) is formally adopted as
-the production UI framework, adopted-and-hardened (e.g. add real test coverage, resolve the known
-mock/real gaps in `docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §3), or treated as a
-reference prototype only while a separate production build happens later. Not blocking for G7 or
-G8 — Frontend team may continue building on `admin-ui` in the meantime, but this ruling should not
-be deferred indefinitely while that continued investment makes the eventual answer harder to
-reverse.
-
-**Allowed development approach:** Continue building/wiring `admin-ui` per the 3-team plan §7 —
-this is not frozen pending the ruling — but do not describe it in any durable doc as "the"
-production UI until this decision is actually made.
-
 ## O-005 — Tool identity and schema fingerprint
 
 **Priority:** High
@@ -79,6 +48,27 @@ AgentGate should own an execution/correlation identifier for audit, future aggre
 **Current action:** Define as part of the request-context model.
 
 ## Resolved
+
+### O-009 — Production UI framework disposition (resolved 2026-09-18, by consolidation)
+
+**Priority was:** Medium
+
+**Original question:** `frontend/src` deliberately left the production UI framework unchosen. A
+teammate independently built `admin-ui/` (React/Vite, PR #3, 2026-09-18 morning) against that
+contract layer. Hours later, a second teammate — working from the G7 Frontend ticket
+(`docs/PHASES/G7_WORKSTREAMS/03_FRONTEND_G7.md`) but apparently without pulling latest
+`development` first — independently built a second, separate app at `frontend/app/` (PR #5/#6,
+2026-09-18 evening), whose own doc stated "there is no separate `admin-ui/` directory in this
+checkout." Two competing implementations existed simultaneously in `development` — the exact
+silent-drift risk this decision was recorded to prevent.
+
+**Resolution:** `admin-ui/` removed; `frontend/app/` is the production UI going forward. Rationale:
+`frontend/app/` already had committed automated test coverage (`ActivatePolicyPage.test.tsx`,
+`PoliciesListPage.test.tsx`, `decision-fixtures.test.ts`, `policy-workflow.test.ts`) and its own
+`PROPOSED_G8_API_CONTRACTS.md` — both further along than `admin-ui/` was at the point of decision.
+Not a judgment that `admin-ui/`'s work was lower quality; it was a straightforward "one of these
+has to go" call made in favor of the more-progressed option. See
+`docs/PHASES/G7_WORKSTREAMS/03_FRONTEND_G7.md` for the corrected, `frontend/app/`-targeted ticket.
 
 ### O-008 — ext_authz transport mapping to decision.Request contract (resolved 2026-09-16, G6 Phase 1)
 

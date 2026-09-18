@@ -4,7 +4,7 @@
 **Repository state this guide matches:** post-G6 (real MCP enforcement live; G7 in progress under
 the 3-team model) — see `docs/DEVELOPMENT/CURRENT_STATUS.md` for the current checkpoint, and
 `docs/README.md` for full navigation. This guide covers the `agentgate/` Go module in detail
-(§3-8); the `gateway/`, `frontend/`, `admin-ui/`, and `deploy/` trees each have their own
+(§3-8); the `gateway/`, `frontend/`, `frontend/app/`, and `deploy/` trees each have their own
 README/setup notes at their root. **Corrected 2026-09-18** — this guide previously described
 `internal/authz`, `internal/identity`, and `internal/audit` as unimplemented boundary packages;
 all three have been fully built since (G2, G5, G6 respectively). Read `CURRENT_STATUS.md`, not
@@ -71,27 +71,26 @@ agentgate-dev/
     internal/governanceintegration/ dry-run candidate-vs-active comparison (G4)
     internal/audit/          durable, tamper-evident decision audit — Postgres, SHA-256 row
                              chaining, fail-closed on write failure (G5), real-time-integrated (G6)
-    internal/authz/          real Envoy v3 ext_authz gRPC adapter/server (G6) — see the evidence
-                             caveat in docs/PHASES/G7_WORKSTREAMS/01_BACKEND_G7.md §2 before
-                             trusting its E2E test suite's "12/12" claim at face value
+    internal/authz/          real Envoy v3 ext_authz gRPC adapter/server (G6). Its E2E test
+                             suite's live/unit conflation and two structurally-fake tests were
+                             found and fixed in G7 Task A (2026-09-18) — see the corrective-
+                             closeout addendum in docs/PHASES/G6_WORKSTREAMS/CLOSURE_SUMMARY.md §5
     qa/g1blackbox/           independent black-box suite, genuinely zero internal/* imports
     qa/g2security/, qa/g3governance/, qa/g4integration/, qa/g5audit/, qa/g6enforcement/
                              black-box in the sense of testing the contract, not internals — but
                              each imports internal/* directly (only g1blackbox is import-free)
   gateway/                   agentgateway configuration + an independent Go verification harness
   frontend/                  TypeScript models/parsing/state-machine for the frozen contract
-                             (framework-agnostic by design — no rendering code; see admin-ui/)
-  admin-ui/                  React/Vite admin UI prototype consuming frontend/'s contract layer.
-                             Merged 2026-09-18 from an independently-developed branch. Whether
-                             this becomes the production UI is still open — O-009 in
-                             docs/DECISIONS/OPEN_DECISIONS.md.
+                             (framework-agnostic by design — no rendering code; see frontend/app/)
+    app/                     the production React/Vite UI (O-009, resolved 2026-09-18), consuming
+                             frontend/'s contract layer via the `@contract` Vite alias
   deploy/g1/ ... deploy/g6/  one Docker Compose topology per checkpoint that needed one; g6 is the
-                             current real-enforcement proof (see the evidence caveat above)
+                             current real-enforcement proof
 ```
 
 All Go commands below are run **from inside `agentgate/`** — that's where `go.mod` lives, not
 the repo root. `gateway/harness` is its own separate Go module (its own `go.mod`); `frontend/` and
-`admin-ui/` are npm projects (Vitest and Vite respectively), not Go.
+`frontend/app/` are npm projects (Vitest and Vite respectively), not Go.
 
 ## 4. Build and test it
 

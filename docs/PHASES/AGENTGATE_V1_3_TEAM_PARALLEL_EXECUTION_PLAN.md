@@ -24,7 +24,9 @@ independence model between teams, and the current milestone change.
 2. A teammate independently built a substantial Admin UI (`admin-ui/`, merged 2026-09-18) against
    a G1–G4 understanding of the backend. Backend has since shipped G5 (durable audit) and G6 (real
    enforcement); the UI's own `FLOW_AND_ARCHITECTURE.md` documents mock-vs-real status as of G4 and
-   is now stale in its reasoning (see §3).
+   is now stale in its reasoning (see §3). **Later the same day, a second teammate independently
+   built a second admin UI, `frontend/app/`, without pulling this merge first. `admin-ui/` was
+   removed in favor of `frontend/app/` (O-009, resolved) — §3 and this item are kept as history.**
 3. QA/Security and DevOps as *separate* workstreams made sense while every stream had daily
    critical-path dependencies on the others. They no longer do — verification and deployment work
    now belongs inside whichever team owns the change (a backend change carries its own tests and
@@ -70,7 +72,7 @@ team owns the change, per §4):
 |---|---|---|
 | **Backend** | `agentgate/` Go module: identity, tool/argument governance, Cedar decision core, policy lifecycle, durable audit, downstream credentials, its own tests (unit/race/integration/security) and deploy config for what it ships | MCP protocol/proxy implementation, UI |
 | **AI / Gateway** | `gateway/`, `deploy/`, agentgateway configuration, MCP transport correctness, the realistic demonstration system, integration-point discovery, its own E2E/black-box proof suites | Cedar policy content, durable audit schema, UI |
-| **Frontend** | `admin-ui/`, `frontend/` (framework-agnostic contract layer), operator-facing workflow correctness, eventual docs/landing sites (deferred, §7) | Direct authorization enforcement, backend contract changes without Backend sign-off |
+| **Frontend** | `frontend/app/` (the production UI, O-009), `frontend/` (framework-agnostic contract layer), operator-facing workflow correctness, eventual docs/landing sites (deferred, §7) | Direct authorization enforcement, backend contract changes without Backend sign-off |
 
 The non-negotiable invariants from `docs/SECURITY/PRODUCTION-INVARIANTS.md` are unchanged and
 binding on all 3 teams without exception:
@@ -98,12 +100,23 @@ Do not re-derive this — read it:
   support) are open; everything else through G6 is resolved.
 - `docs/PHASES/G6_WORKSTREAMS/CLOSURE_SUMMARY.md` — the most recent checkpoint's full walkthrough,
   including the exact diagram this plan's G7 closes the dotted line on.
-- `admin-ui/README.md` and `admin-ui/FLOW_AND_ARCHITECTURE.md` — the UI's own honest
-  real-vs-mock accounting, written against G4. §3 below states exactly what's changed since.
+- `frontend/app/` — the production UI (O-009, resolved 2026-09-18). See
+  `docs/DEVELOPMENT/CURRENT_STATUS.md`'s "Admin UI (`frontend/app/`)" section for its current
+  real-vs-mock accounting.
 
 ---
 
-## 3. Admin UI ↔ Backend Consistency — what's actually stale, and what to do about it
+## 3. Admin UI ↔ Backend Consistency — superseded, kept for history
+
+**This section described `admin-ui/`, which was removed 2026-09-18 (O-009, resolved in favor of
+`frontend/app/` — see `docs/DECISIONS/OPEN_DECISIONS.md`).** Two teammates independently built a
+full admin UI the same day; `frontend/app/` was further along (committed tests, its own API
+contract proposal) at the point the call was made, so it was kept. The specific
+`FLOW_AND_ARCHITECTURE.md`-row analysis below no longer applies to any file in this repo — kept
+verbatim as a historical record of the reasoning at the time, not as current instruction.
+
+<details>
+<summary>Original §3 (historical, admin-ui/, superseded)</summary>
 
 The UI's self-assessment (`admin-ui/FLOW_AND_ARCHITECTURE.md` §3) is unusually rigorous — it
 already labels every screen 🟢 real / 🟡 mock-grounded / 🔴 reframed and explains why. It is not
@@ -117,11 +130,6 @@ reasons for "mock" have changed:
 | Decision Tester | Posts to `cmd/g1-mock-authz` (a non-production binary wrapping the same `internal/decision.Engine`) | `cmd/agentgate` now enforces for real, but only via gRPC `ext_authz` on `:9001` — there is no HTTP JSON decision-test surface on the real production binary. `g1-mock-authz` also bypasses the tool-governance/argument-whitelist/audit layers G2–G6 added around the core engine. | Document this gap explicitly in the UI (it already should not claim more than it does); Backend team decides in a later checkpoint whether a lightweight HTTP decision-test endpoint on `cmd/agentgate` is worth adding for demo/ops purposes, separate from the real gRPC enforcement path. |
 | Everything else (Policies, Dashboard active-policy card, Settings, Login, Error states) | — | Unaffected — these were already real or correctly reframed and nothing about their backing changed. | No action. |
 
-**Immediate task (Frontend team, before any new feature work):** update `FLOW_AND_ARCHITECTURE.md`
-§3 rows 5 and 8/9 and the README's status table to say *why* each is still mock in **current**
-terms (no read API), not G4-era terms (feature doesn't exist). This is a documentation-accuracy
-fix, not a UI rebuild — the actual screens don't need to change until the backend read APIs exist.
-
 **No other consistency defects were found.** The admin-ui's mock data deliberately lives only
 under `admin-ui/src/mock/`, never mixed into the frozen `frontend/src/models` contract layer that
 other workstreams read from — confirmed by direct inspection of `admin-ui/src/lib/contract.ts`,
@@ -129,6 +137,8 @@ which re-exports (not reimplements) every type/client from `frontend/src`. The m
 `admin-ui/` into `development` also merged current `development` into the PR branch first, so
 `frontend/src` as consumed by `admin-ui` is already at the G6 tip — there is no version-skew bug to
 fix, only the documentation-accuracy gap above.
+
+</details>
 
 ---
 
@@ -338,38 +348,43 @@ never happened).
 
 ---
 
-## 7. Team C — Frontend (`admin-ui/`, `frontend/`, docs/landing sites later)
+## 7. Team C — Frontend (`frontend/app/`, `frontend/`, docs/landing sites later)
 
-**Owns:** the admin UI, the framework-agnostic contract layer, and — later — public-facing
-documentation and landing sites.
+**Owns:** the admin UI (`frontend/app/` — O-009, resolved 2026-09-18; supersedes the removed
+`admin-ui/`), the framework-agnostic contract layer, and — later — public-facing documentation
+and landing sites.
 
-### Immediate (before new feature work): Consistency Remediation
+### Immediate (before new feature work): write the real-vs-mock accounting `frontend/app/` lacks
 
-Execute §3's table exactly: update `admin-ui/FLOW_AND_ARCHITECTURE.md` §3 rows 5 (Audit) and 8/9
-(Tools) and the README status table to state the *current* reason each is still mock (no read API
-yet), not the *G4-era* reason (feature not built). This is a documentation edit, not a UI rebuild.
+`admin-ui/` had a rigorous `FLOW_AND_ARCHITECTURE.md` (screen-by-screen 🟢/🟡/🔴 accounting);
+`frontend/app/` currently only has a structural `FRONTEND_IMPLEMENTATION.md` with no such
+accounting. Write one for `frontend/app/`, modeled on the old `admin-ui/FLOW_AND_ARCHITECTURE.md`
+(available in this repo's history — `git show 98a038b:admin-ui/FLOW_AND_ARCHITECTURE.md` — as a
+template for the level of rigor expected, not as content to copy verbatim, since the actual
+screens differ). This is a documentation task, not a UI rebuild.
 
 ### G8 — Wire the new read APIs (consumes Backend's G7 Task C output)
 
-Once Backend ships the audit-query and tool-registry read endpoints:
+`frontend/app/` already has a contracts draft (`frontend/app/PROPOSED_G8_API_CONTRACTS.md`) —
+Backend's G7 Task C should review that directly rather than starting from a blank proposal. Once
+Backend ships the audit-query and tool-registry read endpoints:
 
 1. Add typed models/client methods to `frontend/src/models` and `frontend/src/api` for both
    endpoints (matching the existing pattern `GovernanceClient` already establishes — a documented
-   interface plus `Http*` and `Mock*` implementations, so `admin-ui` can toggle mock/live the same
-   way Policies already does).
-2. Wire `admin-ui`'s Audit Logs and Tools & Resources pages to the real client, keeping the mock
-   client as the default/fallback exactly as Policies does today.
-3. Flip the 🟡 status to 🟢 in `FLOW_AND_ARCHITECTURE.md` only once this is actually live and
-   tested against the real backend — not preemptively.
+   interface plus `Http*` and `Mock*` implementations, so `frontend/app` can toggle mock/live the
+   same way Policies already does).
+2. Wire `frontend/app`'s Audit and Tools pages to the real client, keeping the mock client as the
+   default/fallback exactly as Policies does today.
+3. Record the real-vs-mock flip in the accounting doc written above only once this is actually
+   live and tested against the real backend — not preemptively.
 
-### Ongoing: continued admin-ui development
+### Ongoing: continued `frontend/app/` development
 
-Beyond the consistency fix, continue building out the UI per its own existing, already-good
-architecture doc (dashboard aggregation, dry-run-over-real-audit-history once G8's audit API
-exists, tool classification write-path if and when Backend agrees to build one, etc.) — this is
-normal incremental product work, not a special checkpoint; scope individual tickets as needed
-using the `new-checkpoint-scaffold`/task-ticket convention when a body of work is large enough to
-warrant one.
+Beyond the above, continue building out the UI (dashboard aggregation, dry-run-over-real-audit-
+history once G8's audit API exists, tool classification write-path if and when Backend agrees to
+build one, etc.) — this is normal incremental product work, not a special checkpoint; scope
+individual tickets as needed using the `new-checkpoint-scaffold`/task-ticket convention when a
+body of work is large enough to warrant one.
 
 ### Deferred (explicitly not scheduled): Documentation site + landing page
 
@@ -429,6 +444,6 @@ outright) when the condition they depend on isn't met, never silently substitute
 4. Only after Task A closes: AI/Gateway picks and documents the real/realistic backend (Task B,
    §6), then hands its credential requirements to Backend team, who designs the token-exchange
    mechanism against that concrete backend (Task B, §5).
-5. Lead Architect rules on **O-009** (production UI framework disposition, `OPEN_DECISIONS.md`) —
-   not blocking G7, but should not stay silently unresolved indefinitely while Frontend keeps
-   building on `admin-ui` as if it were already the settled answer.
+5. ~~Lead Architect rules on **O-009** (production UI framework disposition)~~ — resolved
+   2026-09-18 by consolidation: `frontend/app/` is the production UI, `admin-ui/` was removed. See
+   `docs/DECISIONS/OPEN_DECISIONS.md`.

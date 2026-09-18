@@ -1,111 +1,93 @@
-# G7 Ticket — Frontend Team (`admin-ui/`, `frontend/`)
+# G7 Ticket — Frontend Team (`frontend/app/`, `frontend/`)
 
-**Status:** OPEN — ready to start now.
+**Status:** OPEN — Tasks A and B below are largely already satisfied by existing work; verify and
+close the remaining gap (§2), then continue with Task D.
 **Team:** Frontend. **Plan:** `docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §7.
-**What comes after this checkpoint:** `docs/PHASES/PROGRESS_AND_ROADMAP.md` — the checkpoint tracker (G1→G11), with your team's next tasks already scoped and their dependencies marked.
-**This file is self-contained.** Unlike Backend/AI-Gateway, none of your tasks below are blocked
-on anyone — you are the team others are waiting on for one thing (§3), not the reverse.
+**What comes after this checkpoint:** `docs/PHASES/PROGRESS_AND_ROADMAP.md` — the checkpoint
+tracker (G1→G11), with your team's next tasks already scoped and their dependencies marked.
+**This file is self-contained.** None of your tasks below are blocked on anyone — you are the
+team others are waiting on for one thing (§4), not the reverse.
 
 ---
 
-## 0. Read first
+## 0. Read first — and important context on this ticket's history
 
-- `admin-ui/FLOW_AND_ARCHITECTURE.md` — already corrected as of 2026-09-18 to state accurately
-  which panels are real vs. mock and why (the previous version's reasoning for the Audit and Tools
-  panels was stale, referencing a pre-G5 backend state; that's now fixed). Read the corrected
-  version, not from memory.
-- `admin-ui/README.md` §"Verified" — also corrected 2026-09-18: the claimed Playwright coverage was
-  a one-time manual session, not committed/reproducible tests. Task B below is what actually closes
-  that gap.
+- `frontend/FRONTEND_IMPLEMENTATION.md` — the app's structural guide.
+- `frontend/app/README.md` §"Verified" — states current, real test coverage.
+- **This ticket originally targeted a different app, `admin-ui/`, built by a different teammate
+  earlier the same day.** Two people independently built a full admin UI on 2026-09-18; `admin-ui/`
+  was removed and `frontend/app/` kept as the production UI (**O-009, resolved** —
+  `docs/DECISIONS/OPEN_DECISIONS.md`). Retargeted 2026-09-18. If you did the work described in §§2-3
+  below before this retarget, it likely already satisfies most of this ticket — see the status
+  notes in each task.
 
 ## 1. Non-negotiables
 
 - Every displayed policy/decision state must come from the backend — never imply success before
-  the server confirms it.
-- Mock data lives only under `admin-ui/src/mock/` — never mixed into `frontend/src/models` (the
-  frozen contract layer other teams read from). This is already true today; keep it that way.
-- Do not describe `admin-ui` as "the" production UI in any durable doc — that's still open
-  (`docs/DECISIONS/OPEN_DECISIONS.md` O-009). Keep building it; just don't overstate its status.
+  the server confirms it. (Already verified in `frontend/app`'s own test suite — see §3.)
+- Mock data/fixtures stay separate from the frozen `frontend/src` contract layer other teams read
+  from — `frontend/app` correctly imports it via the `@contract` alias rather than reimplementing
+  it (verified: `frontend/app/vite.config.ts`'s `resolve.alias`).
+- `frontend/app/` is now the settled production UI (O-009 resolved) — safe to describe it as such
+  in durable docs going forward.
 
-## 2. Task A — Draft the two new read-API contracts for Backend to review
+## 2. Task A — API contracts for Backend to review — **already done, verify only**
 
-Backend's ticket (`01_BACKEND_G7.md` §5) is building two new endpoints. Rather than wait for them
-to propose a shape and you review it, **draft the shape yourself now** — you have everything
-needed already, and this gives you real work instead of idling:
+`frontend/app/PROPOSED_G8_API_CONTRACTS.md` already proposes both endpoint shapes (audit query
+with `before_sequence`+`limit` pagination; tool inventory), matching Backend's ticket
+(`01_BACKEND_G7.md` §5) closely. **Action needed:** confirm Backend has actually reviewed this
+specific file (not a duplicate one someone else wrote) and hand it to them directly if not — this
+is the one place another team is waiting on you (§4).
 
-1. **Audit query** — propose the JSON response shape for
-   `GET /api/v1/workspaces/{workspace_id}/audit-events`, based on the real Go type already in the
-   codebase (`agentgate/internal/audit/types.go`'s `StoredRecord`): `id`, `workspace_id`,
-   `sequence_number`, `execution_id`, `timestamp`, `event_type`, `decision`, `reason`,
-   `principal_agent_id`, `principal_roles`, `principal_on_behalf_of`, `tool_backend_id`,
-   `tool_name`, `tool_risk`, `policy_version`, `policy_hash`, `redacted_arguments`. Decide what
-   pagination shape you want (`cursor`+`next_cursor`, or `before_sequence`+`limit`) — propose one,
-   don't leave it open-ended. Note explicitly whether you need `canonical_payload`/`prev_hash`/
-   `row_hash` (internal chain-verification fields) surfaced in the UI at all, or whether the
-   backend should exclude them by default.
-2. **Tool inventory** — propose the shape for `GET /api/v1/workspaces/{workspace_id}/tools`, based
-   on `agentgate/internal/toolregistry/toolregistry.go`'s `GovernanceRecord`: `ToolID` (itself
-   `BackendID`+`ToolName`), `Known`, `Risk`, `RegisteredFingerprint`. **Important constraint to
-   design around:** this will list only *statically configured* tools, not tools discovered from
-   live traffic — there is no dynamic discovery mechanism yet. Do not design the Tools & Resources
-   panel's copy/empty-states around an assumption of discovering new unclassified tools; that's not
-   what this API will deliver in this checkpoint.
+## 3. Task B — Automated test coverage for the real panels — **already substantially done**
 
-Write both as a short markdown doc, e.g. `admin-ui/PROPOSED_G8_API_CONTRACTS.md`, and hand it to
-Backend team. This does not block you from anything else below.
+`frontend/app` already has a `test` script (`vitest run`) and 4 real test files: policy lifecycle
+(list → validate → create candidate → dry-run → activate → rollback) against
+`MockGovernanceClient`, an explicit test that activation stays pending until the client promise
+resolves (guards §1's non-negotiable directly), and decision-fixture rendering tests.
 
-## 3. Task B — Automated test coverage for the two real panels
+**One real difference from the original spec, not a gap:** the original ticket asked for
+"Decision Tester panel" coverage. `frontend/app` has no separate Decision Tester screen — it tests
+the underlying decision fixtures directly (`decision-fixtures.test.ts`). This is an acceptable
+design choice, not something to retrofit a screen for just to match the old ticket's wording.
 
-**This is the task the project is depending on you for** — `admin-ui`'s own README previously
-overstated its test coverage (corrected 2026-09-18); this closes that gap for real, starting with
-the two panels that are genuinely real (not mock):
+**Action needed:** confirm `frontend/app/README.md`'s "Verified" section (already present and
+accurate as of this writing) stays in sync as more tests are added — no rewrite needed today.
 
-1. **Policies workflow** — the full list → create candidate → validate → dry-run → activate →
-   rollback flow, against `MockGovernanceClient` (deterministic, no network needed) at minimum.
-2. **Decision Tester** — exercising the fixture set it already ships with.
+## 4. Task C — Continue normal `frontend/app/` development
 
-Use `frontend/`'s existing pattern as your reference — it already has full Vitest coverage (63
-tests, 7 suites) for the same underlying contract layer `admin-ui` consumes; you're testing the
-*rendering and interaction* on top of that already-tested contract, not re-testing the contract
-itself. Pick Vitest + React Testing Library for component/interaction tests (add them to
-`admin-ui/package.json`'s `devDependencies` and add a `"test"` script — there isn't one yet, only
-`dev`/`build`/`preview`/`typecheck`). Playwright is acceptable too if you prefer true
-browser-driven E2E, but whichever you choose, it must be **committed, config-and-all, and runnable
-with one command** — the previous manual walkthrough's core flaw was that nobody else could re-run
-it.
+Outside of Tasks A/B, keep building. Nothing here is blocked. Do not start wiring the Audit or
+Tools pages to a real endpoint yet — those endpoints don't exist until Backend's Task C
+(`01_BACKEND_G7.md` §5) ships and reviews your Task A contract doc. When they do, that wiring is
+G8 work (next checkpoint), not this ticket.
 
-**DoD for Task B:**
-1. A `test` script exists in `admin-ui/package.json` and running it exercises both panels.
-2. Tests are deterministic (no reliance on a live backend being up) — use the mock client.
-3. At least one test would fail if activation were displayed as successful before the backend
-   confirmed it (guards the non-negotiable in §1).
-4. `admin-ui/README.md` "Verified" section is updated again to describe the *actual* committed
-   coverage, replacing the "not yet automated" caveat added 2026-09-18.
+## 5. Task D — Write the real-vs-mock accounting `frontend/app/` currently lacks
 
-## 4. Task C — Continue normal admin-ui development
+The now-removed `admin-ui/` had a rigorous, screen-by-screen `FLOW_AND_ARCHITECTURE.md` (🟢 real /
+🟡 mock-grounded / 🔴 reframed, with reasoning for each). `frontend/app/`'s `README.md` and
+`FRONTEND_IMPLEMENTATION.md` don't have this level of accounting yet. Write one, using the old
+file as a model for rigor, not content (`git show 98a038b:admin-ui/FLOW_AND_ARCHITECTURE.md` —
+the screens differ, e.g. no Decision Tester, has Login/Settings differently). This matters because
+without it, nothing stops this app from drifting into the same "claims more than it delivers" gap
+the old one had before correction.
 
-Outside of Tasks A/B, keep building per the UI's own existing, already-good architecture doc.
-Nothing here is blocked. Do not start wiring the Audit or Tools panels to a real endpoint yet —
-those endpoints don't exist until Backend's Task C (`01_BACKEND_G7.md` §5) ships and you've
-reviewed the shape (Task A). When they do, that wiring is G8 work (next checkpoint), not this
-ticket.
-
-## 5. Collaboration & Blockers
+## 6. Collaboration & Blockers
 
 | Your task | Depends on | From whom | What happens if you skip ahead anyway |
 |---|---|---|---|
-| Task A (draft contracts) | Nothing — start immediately | — | — |
-| Task B (test coverage) | Nothing — start immediately | — | — |
-| Task C (continued dev) | Nothing, **except**: don't wire Audit/Tools panels to a real endpoint | Backend's Task C must ship first, and you must review its shape (Task A) | Wiring against a guessed, unreviewed shape risks rework once the real endpoint's actual shape lands — wait for the review loop to close. |
-| — (others' dependency on you) | Backend's Task C contract *freeze* is blocked on your Task A review | Backend team is waiting on you | Do Task A promptly — you are the one other teams are blocked on here, not the other way around. |
+| Task A verification | Nothing — start immediately | — | — |
+| Task B verification | Nothing — start immediately | — | — |
+| Task C (continued dev) | Nothing, **except**: don't wire Audit/Tools to a real endpoint | Backend's Task C must ship first, and must have reviewed your Task A doc | Wiring against an unreviewed shape risks rework once the real endpoint's shape lands. |
+| Task D | Nothing — start immediately | — | — |
+| — (others' dependency on you) | Backend's Task C contract *freeze* is blocked on confirming your Task A doc was actually reviewed | Backend team is waiting on you | Confirm the hand-off explicitly — don't assume they found `frontend/app/PROPOSED_G8_API_CONTRACTS.md` on their own. |
 
-## 6. Before you open a PR
+## 7. Before you open a PR
 
 ```bash
-cd admin-ui
+cd frontend/app
 npm run typecheck
 npm run build
-npm test            # once Task B adds this script
+npm test
 ```
 ```bash
 cd frontend
@@ -114,24 +96,23 @@ npm run build
 npm test
 ```
 
-- Confirm `admin-ui/src/mock/` is still the only place new mock data lives — a change that starts
-  mixing mock shapes into `frontend/src/models` is a boundary violation, not a small refactor;
-  don't do it, flag it instead.
+- Confirm no fixture/mock data starts leaking into `frontend/src/models` (the frozen contract
+  layer) — a boundary violation, not a small refactor; flag it instead of fixing it silently.
 - Diff review: nothing here should touch `agentgate/` Go source or `gateway/`/`deploy/` config.
 
-## 7. Deliverables
+## 8. Deliverables
 
-- `admin-ui/PROPOSED_G8_API_CONTRACTS.md`, reviewed with Backend team.
-- Committed, runnable test coverage for the Policies workflow and Decision Tester.
-- `admin-ui/README.md` updated to reflect the real (now automated) coverage.
+- Confirmation that Backend has reviewed `frontend/app/PROPOSED_G8_API_CONTRACTS.md` specifically.
+- A new real-vs-mock accounting doc for `frontend/app/` (Task D).
 - Handoff report + digest in `docs/PHASES/G7_WORKSTREAMS/results/` (gitignored).
 
-## 8. Explicit non-goals
+## 9. Explicit non-goals
 
-- Do not wire the Audit Logs or Tools & Resources panels to a real backend endpoint this ticket —
-  the endpoints don't exist yet (that's G8, after Backend's Task C ships).
-- Do not implement a tool-classification write path in the UI — no backend write path exists or is
-  planned in this checkpoint (`01_BACKEND_G7.md` §5 non-goal).
+- Do not wire the Audit or Tools pages to a real backend endpoint this ticket — the endpoints
+  don't exist yet (that's G8, after Backend's Task C ships).
+- Do not implement a tool-classification write path — no backend write path exists or is planned
+  in this checkpoint (`01_BACKEND_G7.md` §5 non-goal).
 - Do not build the structured Cedar rule-builder, real OIDC login, or the public docs/landing
   sites — all explicitly deferred per the 3-team plan §7/§8.
-- Do not declare `admin-ui` "the" production UI framework in any doc — O-009 is still open.
+- Do not retrofit a "Decision Tester" screen just to match this ticket's original wording — §3
+  explains why the current approach (testing fixtures directly) is an acceptable substitute.

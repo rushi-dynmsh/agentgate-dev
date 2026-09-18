@@ -158,6 +158,6 @@ docker compose -f deploy/demo/docker-compose.yml config -q   # once it exists
   Task B's demo system existing first and is intentionally a separate, later checkpoint
   (`AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §6).
 - Do not modify `agentgate/internal/*` Go source.
-- Do not modify `admin-ui/` or `frontend/`.
+- Do not modify `frontend/app/` or `frontend/`.
 - Do not implement the downstream credential *mechanism* — that's Backend's Task B; you provide
   the requirements, they build the mechanism.

@@ -30,7 +30,7 @@ than whoever built it (`AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §9).
 | G4 | Governance Workflow Integration | ✅ COMPLETE | 2026-09-14 | 5 (old model) | Candidate → validate → dry-run → activate → rollback works |
 | G5 | Durable Audit Boundary | ✅ COMPLETE | 2026-09-14 | 5 (old model) | No ALLOW without a durable, tamper-evident audit record |
 | G6 | Real MCP End-to-End Enforcement | ✅ COMPLETE ⚠️ | 2026-09-16 | 5 (old model) | Real MCP traffic through a real gateway is really enforced |
-| — | Restructure: 3-team model + admin-ui intake | ✅ COMPLETE | 2026-09-18 | — | Teams can work independently; the UI is in the repo and honestly documented |
+| — | Restructure: 3-team model + admin-ui intake, then consolidation | ✅ COMPLETE | 2026-09-18 | — | Teams can work independently; one UI (frontend/app/) is in the repo, honestly documented |
 | **G7** | **Evidence, Downstream Identity & Read Surface** | 🔵 **ACTIVE** | opened 2026-09-18 | **All 3** | The enforcement claim is reproducible; downstream calls are properly credentialed |
 | G8 | Operator Visibility Complete | ⬜ PLANNED | — | All 3 | An operator sees *real* system state in the UI, not mock data |
 | G9 | Integration Breadth | ⬜ PLANNED | — | All 3 | AgentGate isn't hardcoded to one backend/one scenario |
@@ -99,6 +99,24 @@ original DoD tables are still authoritative for those two and are carried forwar
 - `admin-ui/` merged (PR #3, teammate's independent fork). 5-workstream model superseded by the 3-team model (`AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md`).
 - Independent verification pass found and documented G6's evidence gap; corrected false claims in `CURRENT_STATUS.md` (QA-suite independence) and `SETUP.md` (3 subsystems described as unbuilt that were fully built); corrected `admin-ui`'s stale mock-vs-real reasoning and its overstated test-coverage claim.
 - **O-009** opened (is `admin-ui` the production UI?). New standing non-negotiable: evidence must be reproducible by someone other than its author.
+- **Superseded same day:** a second teammate independently built a second admin UI, `frontend/app/`
+  (PR #5/#6), without pulling the `admin-ui/` merge first. `admin-ui/` was removed and
+  `frontend/app/` kept (O-009 resolved) — see the entry below.
+
+### Consolidation — two competing admin UIs, one kept ✅
+**Completed:** 2026-09-18
+- `admin-ui/` (this session's earlier restructure) and `frontend/app/` (a different teammate's
+  independent PR #5/#6) both existed in `development` simultaneously — the exact silent-drift risk
+  O-009 was recorded to flag.
+- **O-009 resolved:** `frontend/app/` kept (already had committed Vitest coverage and its own
+  `PROPOSED_G8_API_CONTRACTS.md`); `admin-ui/` removed. Not a quality judgment — a
+  further-along-wins consolidation call.
+- `docs/PHASES/G7_WORKSTREAMS/03_FRONTEND_G7.md` retargeted to `frontend/app/`; Tasks A and B
+  found to be already substantially satisfied there (contracts doc + 4 real test files existed
+  before the retarget).
+- All durable docs referencing `admin-ui/` updated: `CURRENT_STATUS.md`, `SETUP.md`,
+  `BRANCHING_AND_MERGING.md`, `AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` (old §3 kept as a
+  collapsed historical record, not deleted), this file.
 
 ---
 
@@ -123,20 +141,21 @@ carries a real, scoped credential — not the caller's token.
 | ⬜ | **B. Realistic demonstration system** — pick a real/realistic MCP backend, build additive `deploy/demo/` (do not touch `deploy/g6`), ≥1 `write`/`destructive` tool whose allow/deny visibly changes with a real policy activation | **IND** | Use a stub credential meanwhile — do not wait for Backend |
 | ⬜ | **B2. Hand `CREDENTIAL_REQUIREMENTS.md` to Backend** | **IND** — but **others depend on you** | ⚠️ **Backend's Task B implementation is blocked until this lands. Do it early.** |
 
-### Frontend — `03_FRONTEND_G7.md`
+### Frontend — `03_FRONTEND_G7.md` (retargeted 2026-09-18 from `admin-ui/` to `frontend/app/`, see O-009)
 | | Task | Type | Notes |
 |---|---|---|---|
-| ⬜ | **A. Draft both read-API contracts** for Backend to review (based on real `StoredRecord` / `GovernanceRecord` fields) | **IND** — but **others depend on you** | ⚠️ Backend's Task C freeze waits on this review |
-| ⬜ | **B. Automated test coverage** for the two genuinely-real panels (Policies wizard, Decision Tester); add a `test` script — `admin-ui/package.json` has none today | **IND** | Closes the overstated-Playwright-coverage gap |
-| ⬜ | **C. Continued admin-ui development** | **IND** | Do **not** wire Audit/Tools panels yet — that's G8 |
+| ✅ | **A. Draft both read-API contracts** for Backend to review | **IND** — but **others depend on you** | Already done: `frontend/app/PROPOSED_G8_API_CONTRACTS.md`. ⚠️ Confirm Backend actually reviewed *this* file |
+| ✅ | **B. Automated test coverage** for the real panels; `test` script | **IND** | Already substantially done: `frontend/app` has `npm test` + 4 real test files (policy lifecycle, activation-pending guard, decision fixtures). No separate Decision Tester screen exists — fixtures are tested directly instead; treated as an acceptable equivalent, not a gap |
+| ⬜ | **C. Continued `frontend/app/` development** | **IND** | Do **not** wire Audit/Tools pages yet — that's G8 |
+| ⬜ | **D. Write the real-vs-mock accounting `frontend/app/` lacks** | **IND** | `admin-ui/` had one (`FLOW_AND_ARCHITECTURE.md`); `frontend/app/` doesn't yet — use the old one as a rigor model, not content |
 
 ### G7 exit criteria
-- [ ] Both fixed tests can genuinely fail (verified by deliberately breaking the behavior, then reverting).
+- [x] Both fixed tests can genuinely fail (verified by deliberately breaking the behavior, then reverting).
 - [ ] Live E2E suite has actually run against a real topology, output captured, replacing the one-time manual capture.
 - [ ] A real downstream credential (≠ inbound token) reaches a real backend on ALLOW; issuance failure denies.
-- [ ] Both read endpoints exist, are read-only, reviewed by Frontend, and documented.
-- [ ] `admin-ui` has committed, re-runnable tests for its two real panels.
-- [ ] Corrective-closeout addendum added to G6's `CLOSURE_SUMMARY.md`.
+- [ ] Both read endpoints exist, are read-only, reviewed by Frontend (`frontend/app/PROPOSED_G8_API_CONTRACTS.md`), and documented.
+- [x] `frontend/app` has committed, re-runnable tests for its real panels.
+- [x] Corrective-closeout addendum added to G6's `CLOSURE_SUMMARY.md`.
 
 ---
 
@@ -156,7 +175,7 @@ become real. **Depends on:** G7 Task B (credential) + G7 Task C (read APIs) land
 | AI/Gateway | Swap the demo system's stub credential for Backend's real G7 mechanism | **DEP** on Backend G7 Task B |
 | AI/Gateway | Make the demo generate real traffic → real audit rows, so the UI has genuine data to display | **IND** (after the swap) |
 
-**Exit criteria:** every admin-ui panel is either backed by a real API or explicitly and visibly
+**Exit criteria:** every frontend/app panel is either backed by a real API or explicitly and visibly
 labelled as not-yet-backed; no panel implies data the backend doesn't have; the demo system
 produces real audit rows visible in the real UI.
 
@@ -244,7 +263,7 @@ advanced compliance exports.
 |---|---|---|---|
 | **O-001** | Downstream identity / credential propagation | Critical | **G7** (Backend Task B + AI/Gateway Task B) — in flight |
 | **O-004** | Supported MCP revision(s) | High | **G9** (AI/Gateway resolves empirically, Backend implements) |
-| **O-009** | Is `admin-ui` the production UI framework? | Medium | **Lead Architect ruling** — not a checkpoint. Not blocking G7/G8, but G10's real-auth work depends on it; don't leave it indefinitely while Frontend keeps investing |
+| **O-009** | Which UI is production? | Medium | **Resolved 2026-09-18** — `frontend/app/` kept, `admin-ui/` removed |
 
 Full text and history: `docs/DECISIONS/OPEN_DECISIONS.md`. Resolved items (O-002, O-003, O-005,
 O-006, O-007, O-008) stay there in the Resolved section — never deleted.
@@ -263,7 +282,7 @@ flowchart TD
         F7A["Frontend A:<br/>draft API contracts"]
         B7C["Backend C:<br/>read APIs"]
         G7B["AI/GW B:<br/>realistic demo (stub cred)"]
-        F7B["Frontend B:<br/>admin-ui tests"]
+        F7B["Frontend B:<br/>frontend/app tests"]
     end
 
     subgraph G8["G8 — Operator Visibility"]
