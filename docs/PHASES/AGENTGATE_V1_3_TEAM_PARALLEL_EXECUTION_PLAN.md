@@ -163,7 +163,39 @@ Now:
 **Owns:** identity, tool/argument governance, Cedar decision core, policy lifecycle, durable
 audit, downstream credentials, and all of `agentgate/`'s own tests and deploy config.
 
-### G7 — Downstream Scoped Identity & Token Exchange (already named as "next" in `CURRENT_STATUS.md`)
+### G7, Task 0 — G6 Evidence Closeout (do this first, before any new G7 code)
+
+**Why this exists:** an independent verification pass (2026-09-17, cross-checked and confirmed
+2026-09-18 — see `docs/DECISIONS/OPEN_DECISIONS.md` for the corrected QA-suite claim this
+surfaced) found that G6's *implementation* is real and sound, but its *end-to-end enforcement
+evidence* is currently overstated: 11 of `qa/g6enforcement`'s 12 tests silently fall back to an
+in-process call when no live gateway is reachable — which is always true in CI and in a plain
+local `go test ./...`, since neither ever stands up the Docker topology. One test
+(`TestScenario07_AgentGateUnavailable`) asserts a condition that's unconditionally true and
+exercises no real fail-closed path. The only genuine live-topology proof is a one-time manual run
+on one developer's machine, using a matrix-runner script (`deploy/g6/run-e2e-matrix.ps1`) that
+hardcodes that machine's absolute file path and cannot run anywhere else, including CI.
+
+**Do not reopen G6's scope or its `CLOSURE_SUMMARY.md` for this** — per `/WORKFLOW.md` §2's
+corrective-closeout pattern, fix the evidence gap and record an addendum; G6's approved
+implementation scope is unchanged.
+
+- Rewrite `TestScenario07_AgentGateUnavailable` to actually stop/block the live connection and
+  assert the gateway denies — not a tautological assertion.
+- Split `qa/g6enforcement` so a live-gateway path is *required* (fails, not silently skipped) for a
+  distinctly-named E2E target, and the in-process path is clearly scoped as a fast unit check of
+  adapter/server logic only — not conflated with the E2E claim.
+- Replace the hardcoded absolute path in `run-e2e-matrix.ps1` with a portable equivalent (relative
+  path or environment variable), or explicitly document the limitation if a portable fix isn't
+  feasible yet.
+- Actually run the corrected suite against a live Docker topology and record fresh, reproducible
+  evidence — replacing the one-time manual capture (`G6_GATEWAY_CONTRACT_OBSERVED.json`).
+
+**DoD:** the "AgentGate unavailable" scenario has a real automated test that can fail; the E2E
+claim is backed by a run anyone (or CI) can reproduce, not a fallback that always takes over;
+the corrective-closeout addendum is recorded per `/WORKFLOW.md` §2 step 3.
+
+### G7, Task 1 — Downstream Scoped Identity & Token Exchange (already named as "next" in `CURRENT_STATUS.md`)
 
 Resolves **O-001**. Design and implement the production mechanism by which AgentGate (or the
 component it delegates to) obtains a downstream credential for the real MCP backend that:
@@ -178,7 +210,7 @@ component it delegates to) obtains a downstream credential for the real MCP back
 **Coordinate with AI/Gateway team:** this mechanism should target whatever real backend AI/Gateway
 selects for the demonstration system (§6) — a scoped GitHub token, a scoped API key, or an
 OAuth token-exchange flow, depending on what that backend actually requires. Do not design this in
-a vacuum against a hypothetical backend; use AI/Gateway's G7 backend selection (their first task,
+a vacuum against a hypothetical backend; use AI/Gateway's G7 backend selection (Task 1,
 §6) as the concrete target before finalizing the mechanism.
 
 **DoD:**
@@ -229,7 +261,21 @@ single-pinned to `2026-07-28`/`tools/call`).
 **Owns:** agentgateway configuration and MCP transport correctness (unchanged from v1's WS-B), plus
 two new mandates that didn't exist in the original 10-day plan.
 
-### G7 — Realistic Demonstration System (new mandate)
+### G7, Task 0 — G6 Evidence Closeout, gateway/deploy half (pairs with Backend's §5 Task 0)
+
+Backend fixes the test code; this team makes the environment that test code needs actually exist
+and actually be runnable by someone else:
+
+- Stand up `deploy/g6/docker-compose.yml` (in CI if feasible, otherwise document precisely why not
+  yet) so Backend's corrected live-gateway E2E target has something real to run against.
+- Fix or replace the hardcoded Windows-machine path in `run-e2e-matrix.ps1` (paired with Backend's
+  same item — whichever team gets there first does it, the other verifies).
+
+**DoD:** the live Docker topology can be stood up from a clean checkout without editing any file
+first (no hardcoded machine-specific paths), on at least one environment other than the original
+author's machine.
+
+### G7, Task 1 — Realistic Demonstration System (new mandate)
 
 The current proof (`deploy/g6/`) uses `probe-mcp`, a toy backend that only counts calls. That was
 correct for proving the enforcement boundary in isolation, but it does not demonstrate AgentGate's
@@ -244,7 +290,7 @@ backend — pick one concrete option and justify it before building:
   so the governance story (deny-by-default, policy activation, rollback) is visibly meaningful
   rather than abstract.
 
-**First task, and Backend's G7 dependency:** decide and document which backend and which
+**Backend's G7 dependency:** decide and document which backend and which
 credential model it needs (API key? OAuth token? scoped PAT?) — hand this to Backend team before
 they finalize the token-exchange mechanism (§5). Use a stub/test credential in the meantime so this
 work is not blocked on Backend's G7 completing first.
@@ -328,17 +374,40 @@ they aren't lost, not built until explicitly started.
 
 ---
 
-## 9. Immediate Next Steps (in order)
+## 9. One New Non-Negotiable: Evidence Must Be Reproducible
 
-1. ~~Write G6's missing `CLOSURE_SUMMARY.md` to its canonical location~~ — done as part of adopting
-   this plan (`docs/PHASES/G6_WORKSTREAMS/CLOSURE_SUMMARY.md`).
-2. Frontend team executes the §3 documentation-accuracy fix (small, unblocks nothing else, but
+Added 2026-09-18, after an independent verification pass found that G6's core implementation is
+real and sound but its end-to-end enforcement *evidence* was not — 11 of 12 `qa/g6enforcement`
+tests silently substitute an in-process call for the live path whenever no live gateway is
+reachable (always true in CI and in a plain local test run), and the one live-topology proof that
+exists is a one-time manual capture on a single developer's machine, using tooling that hardcodes
+that machine's file path and cannot run anywhere else. See §5/§6's "G7, Task 0" for the fix.
+
+**A checkpoint's evidence must be reproducible by someone other than the agent that built it, on
+infrastructure other than that agent's own machine, or it is not yet "PASS / CLOSED / FROZEN" — it
+is "implemented, pending independent proof."** This applies to every future checkpoint closure,
+not only G6. A test that silently falls back to an easier code path when its intended precondition
+isn't met, and still reports success, is worse than no test — it actively misrepresents what was
+proven. Automated fallbacks in test code must fail loudly (skip with a clear message, or fail
+outright) when the condition they depend on isn't met, never silently substitute a weaker check.
+
+---
+
+## 10. Immediate Next Steps (in order)
+
+1. Frontend team executes the §3 documentation-accuracy fix (small, unblocks nothing else, but
    should not be left inaccurate any longer than necessary).
-3. Scaffold `docs/PHASES/G7_WORKSTREAMS/` (per `docs/README.md`'s checkpoint-folder convention)
+2. Scaffold `docs/PHASES/G7_WORKSTREAMS/` (per `docs/README.md`'s checkpoint-folder convention)
    with two active workstream files — `01_BACKEND_G7.md` (§5) and `02_AI_GATEWAY_G7.md` (§6).
    Frontend is not active in G7 (its next scheduled work is G8) and is correctly absent from that
    checkpoint's reference doc, per §4's independence model.
-4. AI/Gateway team's first concrete action inside G7: pick and document the real/realistic backend
-   (§6), then hand its credential requirements to Backend team.
-5. Backend team's first concrete action inside G7: design the token-exchange mechanism against
-   that concrete backend (§5).
+3. **Both teams do Task 0 (G6 Evidence Closeout, §5/§6) before any other G7 work.** This is
+   deliberately sequenced first: G7's own credential mechanism will need a trustworthy enforcement
+   boundary to build on, and per §10's new non-negotiable, no further checkpoint should be marked
+   closed on unreproducible evidence the way G6's E2E claim currently is.
+4. Only after Task 0 closes: AI/Gateway picks and documents the real/realistic backend (Task 1,
+   §6), then hands its credential requirements to Backend team, who designs the token-exchange
+   mechanism against that concrete backend (Task 1, §5).
+5. Lead Architect rules on **O-009** (production UI framework disposition, `OPEN_DECISIONS.md`) —
+   not blocking G7, but should not stay silently unresolved indefinitely while Frontend keeps
+   building on `admin-ui` as if it were already the settled answer.

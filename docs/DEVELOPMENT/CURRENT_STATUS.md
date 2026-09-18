@@ -60,13 +60,26 @@ This file states only what is true *right now*. It is rewritten in place, not ap
 - `deploy/g6/`: Integrated 4-service topology (`g6-postgres`, `g6-agentgate`, `g6-agentgateway`, `g6-probe-mcp`) on `g6net` with automated clean-run matrix runner `deploy/g6/run-e2e-matrix.ps1`.
 
 ### QA & Security proof suites (`agentgate/qa/`)
-- Six independent QA suites importing zero `internal/*` packages:
-  1. `qa/g1blackbox`: Out-of-process contract verification against mock binary.
+- Six QA suites, black-box in the sense of exercising each checkpoint's contract rather than its
+  internals — but **only `qa/g1blackbox` actually imports zero `internal/*` packages**; the other
+  five import `internal/*` directly (corrected 2026-09-18; previously misstated as all six being
+  zero-import — verified by grep, not assumed):
+  1. `qa/g1blackbox`: Out-of-process contract verification against mock binary. Genuinely zero `internal/*` imports.
   2. `qa/g2security`: Identity, tool abuse, argument whitelist, and trust boundary proofs.
   3. `qa/g3governance`: Policy persistence, atomic activation, and Postgres lifecycle invariants.
   4. `qa/g4integration`: Full governance-to-decision loop (8 DoD invariants).
   5. `qa/g5audit`: Durable audit persistence, SHA-256 hash chaining, tamper detection, redaction, fail-closed, and DB privilege separation (9 DoD invariants).
-  6. `qa/g6enforcement`: Full black-box E2E enforcement suite (12 DoD scenarios, live outage fail-closed, live recovery, Postgres SHA-256 chain verification).
+  6. `qa/g6enforcement`: 12 DoD scenarios, all passing — **but see the evidence-integrity caveat
+     below.** Its "live outage fail-closed" / "live recovery" claims come from a one-time manual
+     run against a live Docker topology on one developer's machine, not from CI or a reproducible
+     script anyone else has run. In CI and in a plain local `go test ./...`, 11 of the 12 tests
+     silently execute an in-process fallback instead of the live network path when no live gateway
+     is reachable — which is always, in both of those environments. One scenario
+     (`TestScenario07_AgentGateUnavailable`) asserts a condition that is unconditionally true and
+     exercises no real fail-closed code path at all. **G6's implementation is real and sound; its
+     end-to-end enforcement claim is not yet independently reproducible.** Closing this gap is
+     explicit Backend/AI-Gateway scope in `AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §5/§6
+     (G7's "G6 Evidence Closeout" task).
 
 ---
 
@@ -90,7 +103,9 @@ None active. Next checkpoint **G7 — Downstream Scoped Identity & Token Exchang
 ## Open architectural decisions
 
 See [`docs/DECISIONS/OPEN_DECISIONS.md`](../DECISIONS/OPEN_DECISIONS.md):
-- **Open:** O-001 (downstream identity), O-004 (supported MCP revision).
+- **Open:** O-001 (downstream identity), O-004 (supported MCP revision), O-009 (production UI
+  framework disposition — not blocking, but should not be left indefinitely unresolved while
+  Frontend keeps investing in `admin-ui`).
 - **Resolved:** O-002 (audit durability, resolved G5), O-003 (gateway conformance, resolved G6), O-005 (tool fingerprinting, resolved G2), O-006 (argument authorization model, resolved G2), O-007 (execution identity, resolved G2/G5), O-008 (ext_authz transport mapping, resolved G6).
 
 ---

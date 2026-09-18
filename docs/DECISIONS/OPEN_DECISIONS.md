@@ -1,7 +1,7 @@
 # AgentGate — Open Decisions
 
-**Status:** Active — O-001, O-004 open; O-002, O-003, O-005, O-006, O-007, O-008 resolved
-**Date:** 2026-08-22 (Updated 2026-09-16)
+**Status:** Active — O-001, O-004, O-009 open; O-002, O-003, O-005, O-006, O-007, O-008 resolved
+**Date:** 2026-08-22 (Updated 2026-09-18)
 
 This file contains unresolved questions that may affect architecture or implementation.
 
@@ -26,6 +26,37 @@ The production mechanism for obtaining a downstream credential that represents t
 The current Technology Stack Plan targets MCP `2026-07-28`, while compatibility with older deployed clients remains unresolved.
 
 **Current action:** Confirm the supported compatibility boundary before finalizing client/backend integration.
+
+## O-009 — Production UI framework disposition
+
+**Priority:** Medium
+
+**Original question:** `docs/TECH_STACK.md` and `frontend/` deliberately left the production UI
+framework unchosen — `frontend/src` is framework-agnostic contract/models/view code with no
+rendering layer by design (see `frontend/package.json`'s description and
+`frontend/src/view/decision-view.ts`'s file header). A teammate independently built `admin-ui/`
+(React/Vite) against that contract layer and it was merged into `development` on 2026-09-18
+(PR #3). Its own documentation (`admin-ui/README.md`) explicitly calls itself a "prototype/demo
+scaffold," **not** a resolution of the open framework choice.
+
+**Why this matters:** `docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §7 schedules
+ongoing Frontend-team work directly on `admin-ui/` (wiring new G8 read APIs, continued feature
+development) without that plan itself formally deciding "admin-ui is now the production UI." That
+is a reasonable, low-risk way to keep making progress — but it is drifting into becoming the de
+facto answer without anyone actually deciding it, which is exactly the kind of silent architecture
+change `CLAUDE.md` says not to do.
+
+**Current action:** Lead Architect rules on whether `admin-ui` (React/Vite) is formally adopted as
+the production UI framework, adopted-and-hardened (e.g. add real test coverage, resolve the known
+mock/real gaps in `docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §3), or treated as a
+reference prototype only while a separate production build happens later. Not blocking for G7 or
+G8 — Frontend team may continue building on `admin-ui` in the meantime, but this ruling should not
+be deferred indefinitely while that continued investment makes the eventual answer harder to
+reverse.
+
+**Allowed development approach:** Continue building/wiring `admin-ui` per the 3-team plan §7 —
+this is not frozen pending the ruling — but do not describe it in any durable doc as "the"
+production UI until this decision is actually made.
 
 ## O-005 — Tool identity and schema fingerprint
 

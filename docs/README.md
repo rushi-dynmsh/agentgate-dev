@@ -87,7 +87,7 @@ docs/
 │
 ├── DECISIONS/
 │   └── OPEN_DECISIONS.md                        [living] the canonical unresolved-question
-│                                                 registry (O-001...O-008); resolved items move to
+│                                                 registry (O-001...O-009); resolved items move to
 │                                                 its own "Resolved" section, never deleted
 │
 ├── SECURITY/
