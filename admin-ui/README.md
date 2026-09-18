@@ -67,7 +67,15 @@ yourself with Go installed before relying on them.
 ## Verified
 
 - `npm run typecheck` / `npm run build` — clean.
-- Full Playwright walkthrough of every page (login → dashboard → policies list
+- A full manual walkthrough of every page (login → dashboard → policies list
   → create/validate/dry-run/activate wizard → tools list/detail/classify →
   identities → decision tester (all 12 fixtures) → audit log/detail →
-  settings). Zero browser console/page errors throughout.
+  settings) was done once, by hand, with a Playwright-driven browser, with
+  zero console/page errors observed. **This is not the same as automated test
+  coverage** — no test files, spec files, or Playwright config are committed
+  to this package (`package.json` has no `test`/`e2e` script), so this
+  walkthrough cannot be re-run by anyone else or by CI, and regressions would
+  not be caught automatically. Corrected 2026-09-18 after this gap was
+  independently flagged; adding committed, re-runnable coverage for the two
+  real panels (Policies wizard, Decision Tester) is tracked in
+  `docs/PHASES/G7_WORKSTREAMS/03_FRONTEND_G7.md`.

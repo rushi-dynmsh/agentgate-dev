@@ -134,10 +134,24 @@ docs/
 │   ├── G3_WORKSTREAMS/                          [CLOSED CHECKPOINT — G3: PASS/CLOSED/FROZEN, 2026-09-13]
 │   ├── G4_WORKSTREAMS/                          [CLOSED CHECKPOINT — G4: PASS/CLOSED/FROZEN, 2026-09-14]
 │   ├── G5_WORKSTREAMS/                          [CLOSED CHECKPOINT — G5: PASS/CLOSED/FROZEN, 2026-09-14]
-│   ├── G6_WORKSTREAMS/                          [CLOSED CHECKPOINT — G6: PASS/CLOSED/FROZEN, 2026-09-16]
+│   ├── G6_WORKSTREAMS/                          [CLOSED CHECKPOINT — G6: PASS/CLOSED/FROZEN, 2026-09-16,
+│   │   │                                         evidence-integrity addendum pending, see G7]
 │   │                                             Real MCP End-to-End Enforcement — the last
 │   │                                             checkpoint run under the superseded 5-workstream
-│   │                                             model. See its `CLOSURE_SUMMARY.md`.
+│   │                                             model. See its `CLOSURE_SUMMARY.md`. Its
+│   │                                             implementation is real and sound; an independent
+│   │                                             review (2026-09-18) found its E2E *evidence* was
+│   │                                             overstated (see G7 Task 0 below) — the fix is
+│   │                                             corrective closeout, not a reopened verdict.
+│   │
+│   ├── G7_WORKSTREAMS/                          [ACTIVE CHECKPOINT — first under the 3-team model,
+│   │   │                                         opened 2026-09-18] Downstream credential exchange
+│   │   │                                         (O-001), G6 evidence closeout, and groundwork for
+│   │   │                                         a realistic (non-toy) demonstration system.
+│   │   ├── 01_BACKEND_G7.md                     Backend team's ticket — self-contained
+│   │   ├── 02_AI_GATEWAY_G7.md                  AI/Gateway team's ticket — self-contained
+│   │   ├── 03_FRONTEND_G7.md                    Frontend team's ticket — self-contained
+│   │   └── results/                             GITIGNORED — ephemeral reports + digests
 │   │
 │   └── archive/                                 [historical — see docs/README.md kind 6]
 │       ├── MASTER_PLAN.md                       original Phase 0-7 plan; superseded after Phase 0
@@ -170,6 +184,9 @@ docs/
   currently `docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md`
 - **"What happened at G1 / G2 / ...?"** → that checkpoint's `CLOSURE_SUMMARY.md` (once written),
   or the full detail in its `docs/PHASES/G{N}_WORKSTREAMS/` folder
+- **"What should my team actually be working on right now?"** → your team's ticket in
+  `docs/PHASES/G7_WORKSTREAMS/` (`01_BACKEND_G7.md`, `02_AI_GATEWAY_G7.md`, or
+  `03_FRONTEND_G7.md`) — each is self-contained and states its own collaboration points/blockers
 - **"What's the frozen authorization contract?"** → `docs/PHASES/G1_WORKSTREAMS/GO_BACKEND_G1_CONTRACT.md`
 - **"Is there an open question blocking this?"** → `docs/DECISIONS/OPEN_DECISIONS.md`
 - **"What security invariant governs this?"** → `docs/SECURITY/PRODUCTION-INVARIANTS.md`

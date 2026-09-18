@@ -19,7 +19,12 @@ This file states only what is true *right now*. It is rewritten in place, not ap
 - **G5 — Durable Audit Boundary: PASS / CLOSED / FROZEN** (2026-09-14). Append-only `audit_events` persistence in PostgreSQL (`internal/audit`), tamper-evident SHA-256 row chaining (`prev_hash` + `row_hash`), independent out-of-process `ChainVerifier`, pre-persistence argument redaction (`redact.go`), fail-closed audit enforcement (audit failure => decision `DENY`, resolving O-002), database immutability trigger (`prevent_audit_modification`), database privilege separation (`agentgate_app` vs `agentgate_migrator`), `g5audit` QA suite (9 DoD invariants), and `deploy/g5` reproducible topology. Formally approved by Lead Architect 2026-09-14.
 - **G6 — Real MCP End-to-End Enforcement: PASS / CLOSED / FROZEN** (2026-09-16). Lead Architect verdict recorded 2026-09-16. Envoy v3 `ext_authz` gRPC service (`internal/authz`), JSON-RPC 2.0 tool call adapter, trusted gateway identity metadata extraction, `TrustedWorkspaceResolver`, durable PostgreSQL audit with SHA-256 row chaining, adaptation-failure DENY auditing, live `agentgateway:v1.4.0` integration, independent black-box E2E enforcement suite (`qa/g6enforcement`, 12/12 DoD scenarios passing, live outage fail-closed verified, live service recovery verified), and G4-aligned credential hygiene in `deploy/g6`. Formally approved by Lead Architect 2026-09-16.
 - **Admin UI merged** (2026-09-18, PR #3 from a teammate's independent fork): `admin-ui/` — a React/Vite prototype consuming the frozen `frontend/src` contract layer. Built against a G1–G4 understanding of the backend; see [`AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md`](../PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md) §3 for the exact consistency remediation this requires.
-- **Next Checkpoint: G7 — Downstream Scoped Identity & Realistic Backend Integration** (O-001 concrete implementation, paired with the AI/Gateway team's realistic demonstration system). See the 3-team plan linked above.
+- **Active Checkpoint: G7 — OPEN, 2026-09-18.** Three self-contained team tickets in
+  `docs/PHASES/G7_WORKSTREAMS/`: `01_BACKEND_G7.md` (G6 evidence closeout + downstream credential
+  exchange, O-001, + governance read-surface APIs), `02_AI_GATEWAY_G7.md` (G6 evidence closeout,
+  environment half + realistic demonstration system), `03_FRONTEND_G7.md` (API contract proposal +
+  automated test coverage for admin-ui). Each ticket states its own cross-team collaboration
+  points and blockers — nothing is centrally gated the way G1–G6 were.
 
 ---
 
@@ -96,7 +101,7 @@ This file states only what is true *right now*. It is rewritten in place, not ap
 
 ## Current blockers
 
-None active. Next checkpoint **G7 — Downstream Scoped Identity & Token Exchange** is defined.
+None active. **G7 is open** with 3 tickets in `docs/PHASES/G7_WORKSTREAMS/` — see above.
 
 ---
 
