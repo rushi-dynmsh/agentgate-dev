@@ -16,6 +16,9 @@ import (
 //go:embed migrations/002_create_audit_events.sql
 var migration002SQL string
 
+//go:embed migrations/003_add_downstream_credential_ref.sql
+var migration003SQL string
+
 // PostgresStore implements Store backed by PostgreSQL via pgx/v5.
 type PostgresStore struct {
 	pool *pgxpool.Pool
@@ -58,6 +61,10 @@ func (s *PostgresStore) Migrate(ctx context.Context) error {
 		return fmt.Errorf("audit: apply 002_create_audit_events: %w", err)
 	}
 
+	if _, err := tx.Exec(ctx, migration003SQL); err != nil {
+		return fmt.Errorf("audit: apply 003_add_downstream_credential_ref: %w", err)
+	}
+
 	_, err = tx.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version VARCHAR(128) PRIMARY KEY,
@@ -65,6 +72,9 @@ func (s *PostgresStore) Migrate(ctx context.Context) error {
 		);
 		INSERT INTO schema_migrations (version)
 		VALUES ('002_create_audit_events')
+		ON CONFLICT (version) DO NOTHING;
+		INSERT INTO schema_migrations (version)
+		VALUES ('003_add_downstream_credential_ref')
 		ON CONFLICT (version) DO NOTHING;
 	`)
 	if err != nil {
@@ -131,13 +141,14 @@ func (s *PostgresStore) AppendDecision(ctx context.Context, record DecisionRecor
 			policy_version,
 			policy_hash,
 			redacted_arguments,
+			downstream_credential_ref,
 			canonical_payload,
 			prev_hash,
 			row_hash
 		) VALUES (
 			$1::text,
 			COALESCE((SELECT MAX(sequence_number) FROM audit_events WHERE workspace_id = $1::text), 0) + 1,
-			$2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+			$2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
 		)
 		RETURNING id, sequence_number, timestamp
 	`
@@ -159,6 +170,7 @@ func (s *PostgresStore) AppendDecision(ctx context.Context, record DecisionRecor
 		record.PolicyVersion,
 		record.PolicyHash,
 		argsJSON,
+		record.DownstreamCredentialRef,
 		record.CanonicalPayload,
 		record.PrevHash,
 		record.RowHash,
@@ -186,6 +198,7 @@ func (s *PostgresStore) AppendDecision(ctx context.Context, record DecisionRecor
 	stored.PolicyVersion = record.PolicyVersion
 	stored.PolicyHash = record.PolicyHash
 	stored.RedactedArguments = record.RedactedArguments
+	stored.DownstreamCredentialRef = record.DownstreamCredentialRef
 	stored.CanonicalPayload = record.CanonicalPayload
 	stored.PrevHash = record.PrevHash
 	stored.RowHash = record.RowHash
@@ -216,7 +229,7 @@ const selectFields = `
 	id, workspace_id, sequence_number, execution_id, timestamp, event_type,
 	decision, reason, principal_agent_id, principal_roles, principal_on_behalf_of,
 	tool_backend_id, tool_name, tool_risk, policy_version, policy_hash,
-	redacted_arguments, canonical_payload, prev_hash, row_hash
+	redacted_arguments, downstream_credential_ref, canonical_payload, prev_hash, row_hash
 `
 
 func scanRow(row pgx.Row) (*StoredRecord, error) {
@@ -241,6 +254,7 @@ func scanRow(row pgx.Row) (*StoredRecord, error) {
 		&r.PolicyVersion,
 		&r.PolicyHash,
 		&argsJSON,
+		&r.DownstreamCredentialRef,
 		&r.CanonicalPayload,
 		&r.PrevHash,
 		&r.RowHash,
@@ -325,6 +339,7 @@ func scanRecordRows(rows pgx.Rows) ([]StoredRecord, error) {
 			&r.PolicyVersion,
 			&r.PolicyHash,
 			&argsJSON,
+			&r.DownstreamCredentialRef,
 			&r.CanonicalPayload,
 			&r.PrevHash,
 			&r.RowHash,

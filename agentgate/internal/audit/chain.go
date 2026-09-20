@@ -24,6 +24,14 @@ type canonicalRecord struct {
 	PolicyVersion       string            `json:"policy_version"`
 	PolicyHash          string            `json:"policy_hash"`
 	RedactedArguments   map[string]string `json:"redacted_arguments"`
+	// DownstreamCredentialRef — added G7 (see DecisionRecord.DownstreamCredentialRef).
+	// Empty string for every record written before this field existed AND
+	// for every record written after it until a real credential.Issuer is
+	// wired in; either way it serializes identically to Go's zero value for
+	// string, so this addition does not change canonical bytes for any
+	// historical record — see chain_test.go for a regression test pinning
+	// this.
+	DownstreamCredentialRef string `json:"downstream_credential_ref"`
 }
 
 // ComputeCanonicalPayload serializes a decision or mutation record into a deterministic JSON byte slice.
@@ -48,21 +56,22 @@ func ComputeCanonicalPayload(record DecisionRecord) ([]byte, error) {
 	}
 
 	cr := canonicalRecord{
-		WorkspaceID:         record.WorkspaceID,
-		ExecutionID:         record.ExecutionID,
-		Timestamp:           tsStr,
-		EventType:           eventType,
-		Decision:            record.Decision,
-		Reason:              record.Reason,
-		PrincipalAgentID:    record.PrincipalAgentID,
-		PrincipalRoles:      roles,
-		PrincipalOnBehalfOf: record.PrincipalOnBehalfOf,
-		ToolBackendID:       record.ToolBackendID,
-		ToolName:            record.ToolName,
-		ToolRisk:            record.ToolRisk,
-		PolicyVersion:       record.PolicyVersion,
-		PolicyHash:          record.PolicyHash,
-		RedactedArguments:   args,
+		WorkspaceID:             record.WorkspaceID,
+		ExecutionID:             record.ExecutionID,
+		Timestamp:               tsStr,
+		EventType:               eventType,
+		Decision:                record.Decision,
+		Reason:                  record.Reason,
+		PrincipalAgentID:        record.PrincipalAgentID,
+		PrincipalRoles:          roles,
+		PrincipalOnBehalfOf:     record.PrincipalOnBehalfOf,
+		ToolBackendID:           record.ToolBackendID,
+		ToolName:                record.ToolName,
+		ToolRisk:                record.ToolRisk,
+		PolicyVersion:           record.PolicyVersion,
+		PolicyHash:              record.PolicyHash,
+		RedactedArguments:       args,
+		DownstreamCredentialRef: record.DownstreamCredentialRef,
 	}
 
 	return json.Marshal(cr)
