@@ -54,6 +54,13 @@ const (
 	// ReasonNoPolicyLoaded: there is no valid policy loaded in this
 	// Engine. Cedar was never reached.
 	ReasonNoPolicyLoaded ReasonCode = "no_policy_loaded"
+
+	// ReasonCredentialIssuanceFailure: Cedar produced Allow, but minting the
+	// downstream credential for the real MCP backend failed. The call is
+	// denied, never sent uncredentialed (G7, resolves O-001; see
+	// internal/credential). Added after the original G1 freeze — additive,
+	// does not change any existing ReasonCode's meaning.
+	ReasonCredentialIssuanceFailure ReasonCode = "credential_issuance_failure"
 )
 
 // Identity is the caller identity presented to the decision core. It is
