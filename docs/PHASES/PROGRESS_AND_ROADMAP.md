@@ -29,7 +29,7 @@ than whoever built it (`AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §9).
 | G3 | Policy Persistence + Governance API | ✅ COMPLETE | 2026-09-13 | 5 (old model) | Policy survives restarts, is versioned, has an admin API |
 | G4 | Governance Workflow Integration | ✅ COMPLETE | 2026-09-14 | 5 (old model) | Candidate → validate → dry-run → activate → rollback works |
 | G5 | Durable Audit Boundary | ✅ COMPLETE | 2026-09-14 | 5 (old model) | No ALLOW without a durable, tamper-evident audit record |
-| G6 | Real MCP End-to-End Enforcement | ✅ COMPLETE ⚠️ | 2026-09-16 | 5 (old model) | Real MCP traffic through a real gateway is really enforced |
+| G6 | Real MCP End-to-End Enforcement | ✅ COMPLETE | 2026-09-16 (evidence closed 2026-09-21) | 5 (old model) | Real MCP traffic through a real gateway is really enforced |
 | — | Restructure: 3-team model + admin-ui intake, then consolidation | ✅ COMPLETE | 2026-09-18 | — | Teams can work independently; one UI (frontend/app/) is in the repo, honestly documented |
 | **G7** | **Evidence, Downstream Identity & Read Surface** | 🔵 **ACTIVE** | opened 2026-09-18 | **All 3** | The enforcement claim is reproducible; downstream calls are properly credentialed |
 | G8 | Operator Visibility Complete | ⬜ PLANNED | — | All 3 | An operator sees *real* system state in the UI, not mock data |
@@ -38,10 +38,14 @@ than whoever built it (`AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §9).
 | G11 | Release Candidate Security Gate | ⬜ PLANNED | — | All 3 | Nothing critical/high is open; it's shippable |
 | — | Public launch backlog | 🗄️ UNSCHEDULED | — | Frontend + Lead | Docs site, landing page, license, repo move |
 
-⚠️ **G6 caveat:** the implementation is real and sound; its *end-to-end evidence* was overstated
-(tests silently fell back to in-process calls; two tests couldn't fail). Being corrected in G7,
-Task A — see `docs/PHASES/G7_WORKSTREAMS/01_BACKEND_G7.md` §2. G6's verdict is not reopened; this
-is corrective closeout.
+✅ **G6 evidence gap, closed 2026-09-21:** the implementation was always real and sound; its
+*end-to-end evidence* was overstated at the time of the original verdict (tests silently fell
+back to in-process calls; two tests couldn't fail; the one live-topology capture used an
+always-allow stub, not real AgentGate). Corrected in G7 Task A (code half:
+`docs/PHASES/G7_WORKSTREAMS/01_BACKEND_G7.md` §2; environment half, including two further findings
+— a missing JWT filter and a real identity-parsing bug — taken over and closed the same
+checkpoint: `docs/PHASES/G6_WORKSTREAMS/CLOSURE_SUMMARY.md` §6). G6's verdict was never reopened;
+this was corrective closeout throughout.
 
 **Numbering note:** the superseded 10-day plan's Gate G8 (Production Environment Readiness) and
 Gate G9 (Release Candidate Security Gate) are this roadmap's **G10** and **G11** — same
@@ -130,16 +134,19 @@ carries a real, scoped credential — not the caller's token.
 ### Backend — `01_BACKEND_G7.md`
 | | Task | Type | Notes |
 |---|---|---|---|
-| ⬜ | **A. G6 evidence closeout** — fix `TestScenario07` (tautology), `TestScenario12` (can't fail on wrong ALLOW), split live-E2E from in-process unit path so live skips *loudly* | **IND** to write · **DEP** to verify | Verification step needs AI/Gateway's live topology (their Task A) |
-| ⬜ | **B. Downstream scoped credential** (O-001) — new boundary (e.g. `internal/credential`), invoked only after ALLOW; no raw bearer passthrough; issuance failure → DENY; identity stays auditable | **DEP** | Design now; **implementation blocked on AI/Gateway's backend + credential-model choice** (their Task B, second half) |
+| ✅ | **A. G6 evidence closeout** — fixed `TestScenario07` (tautology), `TestScenario12` (can't fail on wrong ALLOW), split live-E2E from in-process unit path so live skips *loudly*; verified against a real topology 2026-09-21 | **IND** to write · **DEP** to verify | Verification done — see `CLOSURE_SUMMARY.md` §6 |
+| 🟨 | **B. Downstream scoped credential** (O-001) — design half done: `internal/credential` boundary, `decision.ReasonCredentialIssuanceFailure`, audit schema extended (`DownstreamCredentialRef`, both stores, hash-chain-protected) | **DEP** | Design done; **implementation still blocked on AI/Gateway's backend + credential-model choice** (their Task B, second half). Wiring also blocked on a separate architectural fork — see `docs/PHASES/G7_WORKSTREAMS/01_BACKEND_G7.md`-adjacent notes: whether to extend frozen `decision.Result` or use a side-channel to get the issued credential from `AuditedDecisionService` back to `authz.Server` |
 | ✅ | **C. Governance read-surface** — `GET .../audit-events` and `GET .../tools`, implemented to Frontend's own reviewed proposal (`frontend/app/PROPOSED_G8_API_CONTRACTS.md`); `Registry.List()` and `Store.ListRecordsBefore` added; tests cover auth, pagination, empty-result, chain-field exclusion, limit capping | **IND** to build · **DEP** to freeze | Frontend confirming they reviewed *this implementation* (not just their own proposal) is what turns "implemented to spec" into "frozen" — see `GO_BACKEND_G7_READ_API_CONTRACT.md` |
 
 ### AI / Gateway — `02_AI_GATEWAY_G7.md`
+**Taken over 2026-09-21** — the assigned team was unavailable; done directly rather than leaving
+G7 indefinitely blocked. See `docs/PHASES/G6_WORKSTREAMS/CLOSURE_SUMMARY.md` §6 for the full record.
+
 | | Task | Type | Notes |
 |---|---|---|---|
-| ⬜ | **A. G6 evidence closeout, environment half** — fix the hardcoded absolute path in `run-e2e-matrix.ps1` (line 10); stand up `deploy/g6` cleanly; run Backend's corrected live suite once and capture real evidence | **IND** to fix · **DEP** to run | Running the suite needs Backend's Task A fix merged |
-| ⬜ | **B. Realistic demonstration system** — pick a real/realistic MCP backend, build additive `deploy/demo/` (do not touch `deploy/g6`), ≥1 `write`/`destructive` tool whose allow/deny visibly changes with a real policy activation | **IND** | Use a stub credential meanwhile — do not wait for Backend |
-| ⬜ | **B2. Hand `CREDENTIAL_REQUIREMENTS.md` to Backend** | **IND** — but **others depend on you** | ⚠️ **Backend's Task B implementation is blocked until this lands. Do it early.** |
+| ✅ | **A. G6 evidence closeout, environment half** — fixed the hardcoded absolute path in `run-e2e-matrix.ps1`; stood up `deploy/g6` cleanly; ran Backend's corrected live suite and captured real evidence | **IND** to fix · **DEP** to run | Done. Surfaced and fixed two further findings along the way: `agentgateway.yaml` had no JWT filter at all (no authenticated ALLOW was ever possible through this topology), and a real AgentGate bug (`extractClaims` didn't handle agentgateway's `jwt_payload`-nested claim shape) — both documented in `CLOSURE_SUMMARY.md` §6. Also added a CI job (`g6-live-e2e`) running this exact script on every push |
+| ✅ | **B. Realistic demonstration system** — `support-desk-mcp` (`deploy/demo/`), 3 tools (`list_tickets` read, `update_ticket_status` write, `delete_ticket` destructive); baseline policy denies `delete_ticket` for everyone, a candidate that scopes the forbid to exclude `admin` flips it live, rollback reverses it — verified live 2026-09-21 with a full 12-row durable audit trail (`deploy/demo/demo_scenario_audit_trail.txt`) | **IND** | Done, `deploy/g6` untouched |
+| ✅ | **B2. Hand `CREDENTIAL_REQUIREMENTS.md` to Backend** | **IND** — but **others depend on you** | Done — `deploy/demo/CREDENTIAL_REQUIREMENTS.md`. Backend's Task B implementation can now proceed against a concrete target |
 
 ### Frontend — `03_FRONTEND_G7.md` (retargeted 2026-09-18 from `admin-ui/` to `frontend/app/`, see O-009)
 | | Task | Type | Notes |
@@ -151,7 +158,7 @@ carries a real, scoped credential — not the caller's token.
 
 ### G7 exit criteria
 - [x] Both fixed tests can genuinely fail (verified by deliberately breaking the behavior, then reverting).
-- [ ] Live E2E suite has actually run against a real topology, output captured, replacing the one-time manual capture.
+- [x] Live E2E suite has actually run against a real topology, output captured, replacing the one-time manual capture (`deploy/g6/g7_live_run_output.txt`; 2026-09-21).
 - [ ] A real downstream credential (≠ inbound token) reaches a real backend on ALLOW; issuance failure denies.
 - [x] Both read endpoints exist, are read-only, implemented to Frontend's reviewed proposal, and documented (`GO_BACKEND_G7_READ_API_CONTRACT.md`). Pending: Frontend's explicit sign-off on the *implementation* (not just their own proposal) before calling it frozen.
 - [x] `frontend/app` has committed, re-runnable tests for its real panels.
@@ -212,7 +219,7 @@ emitted, restart/recovery works, no hidden manual configuration is required.
 | Backend | Secrets injection — no default/fallback credentials in any production path (today `deploy/g6` uses `${VAR:-default}` dev fixtures, correctly flagged as non-production) | **IND** |
 | Backend | Defined behavior under dependency failure (DB down, gateway down) + concurrency correctness under load | **IND** |
 | AI/Gateway | Production deployment manifests; migration execution path | **IND** |
-| AI/Gateway | CI job running integration tests against a real topology (the thing G7 Task A proves is possible) | **DEP** on G7 Task A |
+| ~~AI/Gateway~~ | ~~CI job running integration tests against a real topology~~ | ✅ done in G7 Task A (`.github/workflows/ci.yml`'s `g6-live-e2e` job) — kept here struck through rather than deleted, since this table's own convention doesn't otherwise track completions |
 | AI/Gateway | SBOM, image signing, reproducible release build | **IND** |
 | AI/Gateway | Backup/recovery procedure + deployment rollback procedure, both demonstrated | **IND** |
 | AI/Gateway | Operator runbook + clean-room deployment script | **IND** |
