@@ -334,10 +334,10 @@ func TestScenario01_AuthenticatedAllowedKnownTool_LiveE2E(t *testing.T) {
 	skipIfLiveUnavailable(t)
 	resetBackendCount(t)
 	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"read_status","arguments":{"verbose":true}}}`
-	status, _, err := sendMCPRequest(getGatewayURL(), map[string]string{
-		"x-agent-id": "agent-reader",
-		"x-roles":    "reader",
-	}, []byte(body))
+	status, _, err := sendMCPRequest(getGatewayURL(), jwtBearerHeader(map[string]any{
+		"sub":   "agent-reader",
+		"roles": "reader",
+	}), []byte(body))
 	if err != nil || status != http.StatusOK {
 		t.Fatalf("expected HTTP 200 on allowed tool, got status %d err %v", status, err)
 	}
@@ -377,10 +377,10 @@ func TestScenario02_AuthenticatedDeniedKnownTool_LiveE2E(t *testing.T) {
 	skipIfLiveUnavailable(t)
 	resetBackendCount(t)
 	body := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"admin_action"}}`
-	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-		"x-agent-id": "agent-reader",
-		"x-roles":    "reader",
-	}, []byte(body))
+	status, _, _ := sendMCPRequest(getGatewayURL(), jwtBearerHeader(map[string]any{
+		"sub":   "agent-reader",
+		"roles": "reader",
+	}), []byte(body))
 	if status != http.StatusForbidden {
 		t.Fatalf("expected HTTP 403 on denied tool, got status %d", status)
 	}
@@ -419,10 +419,10 @@ func TestScenario03_UnknownTool_LiveE2E(t *testing.T) {
 	skipIfLiveUnavailable(t)
 	resetBackendCount(t)
 	body := `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"completely_unknown_op"}}`
-	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-		"x-agent-id": "agent-reader",
-		"x-roles":    "reader",
-	}, []byte(body))
+	status, _, _ := sendMCPRequest(getGatewayURL(), jwtBearerHeader(map[string]any{
+		"sub":   "agent-reader",
+		"roles": "reader",
+	}), []byte(body))
 	if status != http.StatusForbidden {
 		t.Fatalf("expected HTTP 403 on unknown tool, got status %d", status)
 	}
@@ -455,8 +455,13 @@ func TestScenario04_MissingIdentity_LiveE2E(t *testing.T) {
 	resetBackendCount(t)
 	body := `{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"read_status"}}`
 	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{}, []byte(body))
-	if status != http.StatusForbidden {
-		t.Fatalf("expected HTTP 403 on missing identity, got status %d", status)
+	// With no JWT at all, agentgateway's jwtAuth (mode: strict) rejects the
+	// request itself — 401 — before it ever reaches AgentGate's ext_authz
+	// callout, so AgentGate's own 403 is never produced for this specific
+	// case (defense in depth: two independent layers both deny, at
+	// different points). Confirmed live (G7 Task A) — not guessed.
+	if status != http.StatusUnauthorized {
+		t.Fatalf("expected HTTP 401 (gateway-level JWT rejection) on missing identity, got status %d", status)
 	}
 	if count := getBackendCount(t); count != 0 {
 		t.Fatalf("security violation: unauthenticated call reached backend count=%d", count)
@@ -496,11 +501,11 @@ func TestScenario05_AmbiguousIdentity_LiveE2E(t *testing.T) {
 	skipIfLiveUnavailable(t)
 	resetBackendCount(t)
 	body := `{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"read_status"}}`
-	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-		"x-agent-id":     "agent-same",
-		"x-on-behalf-of": "agent-same",
-		"x-roles":        "reader",
-	}, []byte(body))
+	status, _, _ := sendMCPRequest(getGatewayURL(), jwtBearerHeader(map[string]any{
+		"sub":   "agent-same",
+		"obo":   "agent-same",
+		"roles": "reader",
+	}), []byte(body))
 	if status != http.StatusForbidden {
 		t.Fatalf("expected HTTP 403 on ambiguous identity, got status %d", status)
 	}
@@ -533,10 +538,15 @@ func TestScenario06_MalformedAuthzRequest_NonToolMethod_LiveE2E(t *testing.T) {
 	skipIfLiveUnavailable(t)
 	resetBackendCount(t)
 	body := `{"jsonrpc":"2.0","id":6,"method":"initialize","params":{"protocolVersion":"2026-07-28"}}`
-	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-		"x-agent-id": "agent-reader",
-		"x-roles":    "reader",
-	}, []byte(body))
+	// Valid identity, so this proves AgentGate's own method check denies it
+	// (adapter.go parses/rejects the method before identity is even
+	// examined) — not that agentgateway's gateway-level JWT check denied it
+	// first for an unrelated reason (see Scenario04's 401 case, which is
+	// exactly that different failure mode).
+	status, _, _ := sendMCPRequest(getGatewayURL(), jwtBearerHeader(map[string]any{
+		"sub":   "agent-reader",
+		"roles": "reader",
+	}), []byte(body))
 	if status != http.StatusForbidden {
 		t.Fatalf("expected non-tool call to be denied by authz, got %d", status)
 	}
@@ -625,10 +635,10 @@ func TestScenario08_PolicyEvaluationFailure_LiveE2E(t *testing.T) {
 	resetBackendCount(t)
 	// Broken role deliberately triggers Cedar evaluation error when context.amount is absent
 	body := `{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"read_status"}}`
-	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-		"x-agent-id": "agent-broken",
-		"x-roles":    "broken",
-	}, []byte(body))
+	status, _, _ := sendMCPRequest(getGatewayURL(), jwtBearerHeader(map[string]any{
+		"sub":   "agent-broken",
+		"roles": "broken",
+	}), []byte(body))
 	if status != http.StatusForbidden {
 		t.Fatalf("expected HTTP 403 on policy evaluation failure, got status %d", status)
 	}
@@ -673,11 +683,12 @@ func TestScenario09_ToolFingerprintMismatch_LiveE2E(t *testing.T) {
 	skipIfLiveUnavailable(t)
 	resetBackendCount(t)
 	body := `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"read_status"}}`
-	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-		"x-agent-id":         "agent-reader",
-		"x-roles":            "reader",
+	status, _, _ := sendMCPRequest(getGatewayURL(), mergeHeaders(jwtBearerHeader(map[string]any{
+		"sub":   "agent-reader",
+		"roles": "reader",
+	}), map[string]string{
 		"x-tool-fingerprint": "mismatched_drift_fingerprint",
-	}, []byte(body))
+	}), []byte(body))
 	if status != http.StatusForbidden {
 		t.Fatalf("expected HTTP 403 on tool fingerprint mismatch, got status %d", status)
 	}
@@ -727,12 +738,13 @@ func TestScenario10_MaliciousClientClassification_LiveE2E(t *testing.T) {
 	resetBackendCount(t)
 	// Attacker attempts to override risk level via client headers
 	body := `{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"admin_action"}}`
-	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-		"x-agent-id":       "agent-reader",
-		"x-roles":          "reader",
+	status, _, _ := sendMCPRequest(getGatewayURL(), mergeHeaders(jwtBearerHeader(map[string]any{
+		"sub":   "agent-reader",
+		"roles": "reader",
+	}), map[string]string{
 		"x-agentgate-risk": "read",
 		"x-tool-risk":      "read",
-	}, []byte(body))
+	}), []byte(body))
 	if status != http.StatusForbidden {
 		t.Fatalf("expected HTTP 403 on spoofed classification, got status %d", status)
 	}
@@ -765,12 +777,18 @@ func TestScenario11_MalformedJSON_LiveE2E(t *testing.T) {
 	skipIfLiveUnavailable(t)
 	resetBackendCount(t)
 	body := `{"jsonrpc":"2.0", broken syntax...`
-	status, _, _ := sendMCPRequest(getGatewayURL(), map[string]string{
-		"x-agent-id": "agent-reader",
-		"x-roles":    "reader",
-	}, []byte(body))
-	if status == http.StatusOK {
-		t.Fatalf("expected failure on broken JSON, got %d", status)
+	// Valid identity + a tightened assertion (403, not merely "not 200") —
+	// this scenario's original loose check would have silently accepted a
+	// gateway-level 401 (no JWT) as "proof" of AgentGate's own malformed-body
+	// handling, exactly the class of issue G7 Task A exists to close. With a
+	// real JWT, this now genuinely reaches and exercises AgentGate's own
+	// JSON parsing failure path.
+	status, _, _ := sendMCPRequest(getGatewayURL(), jwtBearerHeader(map[string]any{
+		"sub":   "agent-reader",
+		"roles": "reader",
+	}), []byte(body))
+	if status != http.StatusForbidden {
+		t.Fatalf("expected HTTP 403 on broken JSON, got %d", status)
 	}
 	if count := getBackendCount(t); count != 0 {
 		t.Fatalf("security violation: malformed JSON reached backend count=%d", count)

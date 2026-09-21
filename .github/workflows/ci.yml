@@ -91,6 +91,36 @@ jobs:
         if: steps.gomod.outputs.exists == 'true'
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
+  g6-live-e2e:
+    name: G6 live enforcement E2E
+    runs-on: ubuntu-latest
+    # DoD item 4, G7 Task A (docs/PHASES/G7_WORKSTREAMS/02_AI_GATEWAY_G7.md §2):
+    # ubuntu-latest ships both Docker and PowerShell Core (pwsh) by default, so
+    # this runs the exact same script a developer runs locally — no duplicated
+    # logic, no separate CI-only test path. No secrets needed: every credential
+    # deploy/g6 uses is an explicit, checked-in dev fixture (see
+    # docker-compose.yml's top comment and deploy/g6/jwks/README.md).
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run the G6 live enforcement matrix
+        shell: pwsh
+        run: ./run-e2e-matrix.ps1
+        working-directory: deploy/g6
+
+      - name: Dump container logs on failure
+        if: failure()
+        shell: bash
+        working-directory: deploy/g6
+        run: docker compose logs --tail=200
+
+      - name: Tear down
+        if: always()
+        shell: bash
+        working-directory: deploy/g6
+        run: docker compose down -v
+
   frontend:
     name: Frontend validation
     runs-on: ubuntu-latest

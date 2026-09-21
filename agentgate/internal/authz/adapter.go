@@ -293,7 +293,26 @@ func (a *Adapter) extractClaims(checkReq *authv3.CheckRequest) map[string]string
 	// Read claims ONLY from Envoy JWT filter metadata populated after cryptographic verification
 	if checkReq != nil && checkReq.Attributes != nil && checkReq.Attributes.MetadataContext != nil && checkReq.Attributes.MetadataContext.FilterMetadata != nil {
 		if jwtMetadata, ok := checkReq.Attributes.MetadataContext.FilterMetadata["envoy.filters.http.jwt_authn"]; ok && jwtMetadata != nil {
-			for k, v := range jwtMetadata.Fields {
+			// The pinned agentgateway:v1.4.0 nests the actual JWT payload one
+			// level deeper, under a "jwt_payload" field — found and confirmed
+			// by live diagnostic (G7 Task A): a struct like
+			// {"jwt_payload":{"sub":"...","roles":"...", ...}}, not the claims
+			// flat at the top level as this code previously assumed. That
+			// assumption was never exercised against a real JWT before —
+			// deploy/g6/agentgateway.yaml had no jwtAuth block at all until
+			// this same checkpoint added one, and the original manual G6
+			// evidence capture used the always-allow probe-authz stub
+			// (docs/PHASES/G6_WORKSTREAMS/G6_GATEWAY_CONTRACT_OBSERVED.json
+			// shows "metadata": {} — empty), not a real JWT flow. Falls back
+			// to reading fields flat, for forward-compatibility if agentgateway
+			// or its config ever changes to emit claims at the top level.
+			fields := jwtMetadata.Fields
+			if payload, ok := fields["jwt_payload"]; ok && payload != nil {
+				if payloadStruct := payload.GetStructValue(); payloadStruct != nil {
+					fields = payloadStruct.Fields
+				}
+			}
+			for k, v := range fields {
 				claims[k] = structpbValueToString(v)
 			}
 		}

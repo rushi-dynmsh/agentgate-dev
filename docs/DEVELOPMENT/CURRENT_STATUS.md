@@ -86,17 +86,17 @@ This file states only what is true *right now*. It is rewritten in place, not ap
   3. `qa/g3governance`: Policy persistence, atomic activation, and Postgres lifecycle invariants.
   4. `qa/g4integration`: Full governance-to-decision loop (8 DoD invariants).
   5. `qa/g5audit`: Durable audit persistence, SHA-256 hash chaining, tamper detection, redaction, fail-closed, and DB privilege separation (9 DoD invariants).
-  6. `qa/g6enforcement`: 12 DoD scenarios, all passing — **but see the evidence-integrity caveat
-     below.** Its "live outage fail-closed" / "live recovery" claims come from a one-time manual
-     run against a live Docker topology on one developer's machine, not from CI or a reproducible
-     script anyone else has run. In CI and in a plain local `go test ./...`, 11 of the 12 tests
-     silently execute an in-process fallback instead of the live network path when no live gateway
-     is reachable — which is always, in both of those environments. One scenario
-     (`TestScenario07_AgentGateUnavailable`) asserts a condition that is unconditionally true and
-     exercises no real fail-closed code path at all. **G6's implementation is real and sound; its
-     end-to-end enforcement claim is not yet independently reproducible.** Closing this gap is
-     explicit Backend/AI-Gateway scope in `AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md` §5/§6
-     (G7's "G6 Evidence Closeout" task).
+  6. `qa/g6enforcement`: 12 DoD scenarios (22 test functions: 12 always-on unit + 10 live-E2E,
+     Scenarios 07/12 have no live counterpart by design), all passing, **including the live-E2E
+     suite against a real Docker topology** — closed 2026-09-21
+     (`docs/PHASES/G6_WORKSTREAMS/CLOSURE_SUMMARY.md` §6). Reproducible by anyone: `deploy/g6/run-e2e-matrix.ps1`
+     runs unedited from a clean checkout, and CI runs the identical script on every push
+     (`.github/workflows/ci.yml`'s `g6-live-e2e` job). Fixing this surfaced and closed two further
+     findings along the way — `deploy/g6/agentgateway.yaml` had no JWT filter at all (no
+     authenticated ALLOW was ever actually possible through this topology before), and a real bug
+     in `internal/authz/adapter.go`'s claim extraction (agentgateway nests JWT claims under a
+     `jwt_payload` key this code didn't know to look inside). Both fixed; see the closure summary
+     for the full trace.
 
 ---
 

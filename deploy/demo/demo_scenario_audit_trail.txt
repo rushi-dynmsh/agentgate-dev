@@ -1,0 +1,16 @@
+ sequence_number | event_type | decision |       reason       | principal_agent_id |      tool_name       |                          policy_version                          
+-----------------+------------+----------+--------------------+--------------------+----------------------+------------------------------------------------------------------
+               1 | mutation   | MUTATION | create_candidate   |                    |                      | v1.0.0
+               2 | mutation   | MUTATION | activate           |                    |                      | v1.0.0
+               3 | decision   | DENY     | no_matching_policy | agent-support      | list_tickets         | v1.0.0
+               4 | decision   | ALLOW    | policy_allow       | agent-reader       | list_tickets         | v1.0.0
+               5 | decision   | ALLOW    | policy_allow       | agent-admin        | update_ticket_status | v1.0.0
+               6 | decision   | DENY     | policy_deny        | agent-admin        | delete_ticket        | v1.0.0
+               7 | mutation   | MUTATION | create_candidate   |                    |                      | a009f5b8db315b9ea757cfb45d93eeb4f22b5961f763f4d56fb42556bc00ded3
+               8 | mutation   | MUTATION | activate           |                    |                      | a009f5b8db315b9ea757cfb45d93eeb4f22b5961f763f4d56fb42556bc00ded3
+               9 | decision   | ALLOW    | policy_allow       | agent-admin        | delete_ticket        | a009f5b8db315b9ea757cfb45d93eeb4f22b5961f763f4d56fb42556bc00ded3
+              10 | decision   | DENY     | policy_deny        | agent-reader       | delete_ticket        | a009f5b8db315b9ea757cfb45d93eeb4f22b5961f763f4d56fb42556bc00ded3
+              11 | mutation   | MUTATION | rollback           |                    |                      | v1.0.0
+              12 | decision   | DENY     | policy_deny        | agent-admin        | delete_ticket        | v1.0.0
+(12 rows)
+

@@ -1,0 +1,32 @@
+# AgentGate — G7 Task B demonstration gateway configuration
+# Pinned to cr.agentgateway.dev/agentgateway:v1.4.0@sha256:771afaf093065477fa296eb90dcb618a0300165f12a32f80bbdd1427fab900ec
+# Same schema as deploy/g6/agentgateway.yaml (which this file's JWT block was
+# copied from, once G7 Task A added and verified it there).
+
+gateways:
+  default:
+    port: 3000
+
+    jwtAuth:
+      mode: strict
+      issuer: https://g6-dev-fixture.invalid/
+      audiences: ["agentgate-g6"]
+      jwks:
+        file: ./jwks/dev-fixture-jwks.json
+
+routes:
+  - policies:
+      extAuthz:
+        host: agentgate:9001
+        policies:
+          http:
+            requestTimeout: 5s
+        protocol:
+          grpc: {}
+        failureMode: deny
+        includeRequestBody:
+          maxRequestBytes: 1048576
+          allowPartialMessage: false
+          packAsBytes: false
+    backends:
+      - host: support-desk-mcp:9200

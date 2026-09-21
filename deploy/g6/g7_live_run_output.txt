@@ -1,0 +1,86 @@
+﻿docker :  Container g6-probe-mcp Running 
+At D:\PROJECTS\AgentGate_Hackathon\agentgate-repo\deploy\g6\run-e2e-matrix.ps1:24 char:1
++ docker compose -f $composeFile up -d
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( Container g6-probe-mcp Running :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ Container g6-postgres Running 
+ Container g6-agentgate Running 
+ Container g6-agentgateway Running 
+ Container g6-postgres Waiting 
+ Container g6-postgres Healthy 
+ Container g6-probe-mcp Waiting 
+ Container g6-agentgate Waiting 
+ Container g6-agentgate Healthy 
+ Container g6-probe-mcp Healthy 
+docker : go: downloading go1.25.0 (linux/amd64)
+At D:\PROJECTS\AgentGate_Hackathon\agentgate-repo\deploy\g6\run-e2e-matrix.ps1:63 char:1
++ docker run --rm --network g6net -v "${repoRoot}:/src:ro" -w /src/agen ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (go: downloading go1.25.0 (linux/amd64):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+go: downloading github.com/envoyproxy/go-control-plane/envoy v1.39.0
+go: downloading google.golang.org/grpc v1.82.0
+go: downloading google.golang.org/protobuf v1.36.12
+go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20260911204522-f61a6ca850bd
+go: downloading github.com/jackc/pgx/v5 v5.11.0
+go: downloading github.com/cedar-policy/cedar-go v1.8.0
+go: downloading github.com/jackc/puddle/v2 v2.2.2
+go: downloading github.com/jackc/pgpassfile v1.0.0
+go: downloading github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761
+go: downloading golang.org/x/text v0.37.0
+go: downloading golang.org/x/sync v0.20.0
+go: downloading golang.org/x/sys v0.45.0
+go: downloading golang.org/x/exp v0.0.0-20220921023135-46d9e7742f1e
+go: downloading github.com/envoyproxy/go-control-plane v0.14.0
+go: downloading github.com/envoyproxy/protoc-gen-validate v1.3.3
+go: downloading github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2
+go: downloading golang.org/x/net v0.55.0
+=== RUN   TestScenario01_AuthenticatedAllowedKnownTool
+--- PASS: TestScenario01_AuthenticatedAllowedKnownTool (0.00s)
+=== RUN   TestScenario01_AuthenticatedAllowedKnownTool_LiveE2E
+--- PASS: TestScenario01_AuthenticatedAllowedKnownTool_LiveE2E (0.04s)
+=== RUN   TestScenario02_AuthenticatedDeniedKnownTool
+--- PASS: TestScenario02_AuthenticatedDeniedKnownTool (0.00s)
+=== RUN   TestScenario02_AuthenticatedDeniedKnownTool_LiveE2E
+--- PASS: TestScenario02_AuthenticatedDeniedKnownTool_LiveE2E (0.02s)
+=== RUN   TestScenario03_UnknownTool
+--- PASS: TestScenario03_UnknownTool (0.00s)
+=== RUN   TestScenario03_UnknownTool_LiveE2E
+--- PASS: TestScenario03_UnknownTool_LiveE2E (0.02s)
+=== RUN   TestScenario04_MissingIdentity
+--- PASS: TestScenario04_MissingIdentity (0.00s)
+=== RUN   TestScenario04_MissingIdentity_LiveE2E
+--- PASS: TestScenario04_MissingIdentity_LiveE2E (0.01s)
+=== RUN   TestScenario05_AmbiguousIdentity
+--- PASS: TestScenario05_AmbiguousIdentity (0.00s)
+=== RUN   TestScenario05_AmbiguousIdentity_LiveE2E
+--- PASS: TestScenario05_AmbiguousIdentity_LiveE2E (0.02s)
+=== RUN   TestScenario06_MalformedAuthzRequest_NonToolMethod
+--- PASS: TestScenario06_MalformedAuthzRequest_NonToolMethod (0.00s)
+=== RUN   TestScenario06_MalformedAuthzRequest_NonToolMethod_LiveE2E
+--- PASS: TestScenario06_MalformedAuthzRequest_NonToolMethod_LiveE2E (0.02s)
+=== RUN   TestScenario07_AgentGateUnavailable
+--- PASS: TestScenario07_AgentGateUnavailable (0.00s)
+=== RUN   TestScenario08_PolicyEvaluationFailure
+--- PASS: TestScenario08_PolicyEvaluationFailure (0.00s)
+=== RUN   TestScenario08_PolicyEvaluationFailure_LiveE2E
+--- PASS: TestScenario08_PolicyEvaluationFailure_LiveE2E (0.02s)
+=== RUN   TestScenario09_ToolFingerprintMismatch
+--- PASS: TestScenario09_ToolFingerprintMismatch (0.00s)
+=== RUN   TestScenario09_ToolFingerprintMismatch_LiveE2E
+--- PASS: TestScenario09_ToolFingerprintMismatch_LiveE2E (0.02s)
+=== RUN   TestScenario10_MaliciousClientClassification
+--- PASS: TestScenario10_MaliciousClientClassification (0.00s)
+=== RUN   TestScenario10_MaliciousClientClassification_LiveE2E
+--- PASS: TestScenario10_MaliciousClientClassification_LiveE2E (0.02s)
+=== RUN   TestScenario11_MalformedJSON
+--- PASS: TestScenario11_MalformedJSON (0.00s)
+=== RUN   TestScenario11_MalformedJSON_LiveE2E
+--- PASS: TestScenario11_MalformedJSON_LiveE2E (0.02s)
+=== RUN   TestScenario12_OversizedBody
+--- PASS: TestScenario12_OversizedBody (0.02s)
+PASS
+ok  	github.com/Dynamisch-LLC/agentgate/qa/g6enforcement	0.224s

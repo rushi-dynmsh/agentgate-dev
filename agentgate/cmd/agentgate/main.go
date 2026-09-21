@@ -120,6 +120,24 @@ func run() error {
 	writeStatusSchema := []byte(`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}}}`)
 	writeStatusFP, _ := toolregistry.FingerprintSchema(writeStatusSchema)
 
+	// G7 Task B demo tools (deploy/demo/support-desk-mcp) — additive, alongside the
+	// existing G6 probe tools above, not a replacement. Registered under the same
+	// "mcp-probe"/"default" backend_id namespace: BackendID here is a governance
+	// namespace key, not a physical binding to any one backend process, and none
+	// of these tool names collide with the existing read_status/write_status/
+	// admin_action entries. This is a necessary consequence of a pre-existing gap,
+	// not a new one: internal/toolregistry.Registry is still a hardcoded,
+	// startup-loaded list (no persistent store) — already tracked as Backend work
+	// blocking G9's multi-backend topology in docs/PHASES/PROGRESS_AND_ROADMAP.md §3.
+	listTicketsSchema := []byte(`{"type":"object","properties":{"status_filter":{"type":"string"}}}`)
+	listTicketsFP, _ := toolregistry.FingerprintSchema(listTicketsSchema)
+
+	updateTicketSchema := []byte(`{"type":"object","properties":{"ticket_id":{"type":"string"},"new_status":{"type":"string"}}}`)
+	updateTicketFP, _ := toolregistry.FingerprintSchema(updateTicketSchema)
+
+	deleteTicketSchema := []byte(`{"type":"object","properties":{"ticket_id":{"type":"string"}}}`)
+	deleteTicketFP, _ := toolregistry.FingerprintSchema(deleteTicketSchema)
+
 	toolReg, err := toolregistry.NewRegistry([]toolregistry.RegistryEntry{
 		{
 			ToolID:                toolregistry.ToolID{BackendID: "mcp-probe", ToolName: "read_status"},
@@ -151,6 +169,36 @@ func run() error {
 			Risk:                  toolregistry.RiskDestructive,
 			RegisteredFingerprint: readStatusFP,
 		},
+		{
+			ToolID:                toolregistry.ToolID{BackendID: "mcp-probe", ToolName: "list_tickets"},
+			Risk:                  toolregistry.RiskRead,
+			RegisteredFingerprint: listTicketsFP,
+		},
+		{
+			ToolID:                toolregistry.ToolID{BackendID: "default", ToolName: "list_tickets"},
+			Risk:                  toolregistry.RiskRead,
+			RegisteredFingerprint: listTicketsFP,
+		},
+		{
+			ToolID:                toolregistry.ToolID{BackendID: "mcp-probe", ToolName: "update_ticket_status"},
+			Risk:                  toolregistry.RiskWrite,
+			RegisteredFingerprint: updateTicketFP,
+		},
+		{
+			ToolID:                toolregistry.ToolID{BackendID: "default", ToolName: "update_ticket_status"},
+			Risk:                  toolregistry.RiskWrite,
+			RegisteredFingerprint: updateTicketFP,
+		},
+		{
+			ToolID:                toolregistry.ToolID{BackendID: "mcp-probe", ToolName: "delete_ticket"},
+			Risk:                  toolregistry.RiskDestructive,
+			RegisteredFingerprint: deleteTicketFP,
+		},
+		{
+			ToolID:                toolregistry.ToolID{BackendID: "default", ToolName: "delete_ticket"},
+			Risk:                  toolregistry.RiskDestructive,
+			RegisteredFingerprint: deleteTicketFP,
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("init tool registry: %w", err)
@@ -175,6 +223,16 @@ func run() error {
 			Required: false,
 		},
 	})
+	listTicketsDecls, _ := argdecl.NewDeclarationSet([]argdecl.Declaration{
+		{Name: "status_filter", Type: argdecl.ArgTypeString, Required: false},
+	})
+	updateTicketDecls, _ := argdecl.NewDeclarationSet([]argdecl.Declaration{
+		{Name: "ticket_id", Type: argdecl.ArgTypeString, Required: true},
+		{Name: "new_status", Type: argdecl.ArgTypeString, Required: true},
+	})
+	deleteTicketDecls, _ := argdecl.NewDeclarationSet([]argdecl.Declaration{
+		{Name: "ticket_id", Type: argdecl.ArgTypeString, Required: true},
+	})
 
 	// In G6 single-workspace integration deployment, AllowStaticWorkspace permits fallback to
 	// "default" when JWT does not declare a workspace_id claim. In multi-tenant environments,
@@ -186,8 +244,11 @@ func run() error {
 		IdentityMapper:       identityMapper,
 		ToolRegistry:         toolReg,
 		ArgDeclarations: map[string]*argdecl.DeclarationSet{
-			"read_status":  readStatusDecls,
-			"write_status": writeStatusDecls,
+			"read_status":          readStatusDecls,
+			"write_status":         writeStatusDecls,
+			"list_tickets":         listTicketsDecls,
+			"update_ticket_status": updateTicketDecls,
+			"delete_ticket":        deleteTicketDecls,
 		},
 	})
 
