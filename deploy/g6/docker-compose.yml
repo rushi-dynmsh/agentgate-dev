@@ -90,6 +90,11 @@ services:
     command: ["-f", "/etc/agentgateway/config.yaml"]
     volumes:
       - ./agentgateway.yaml:/etc/agentgateway/config.yaml:ro
+      # jwtAuth.jwks.file in agentgateway.yaml is "./jwks/dev-fixture-jwks.json" —
+      # verified empirically that agentgateway resolves this relative to its
+      # process cwd ("/"), not relative to the config file's own directory, so
+      # this mounts at the matching absolute path (G7 Task A finding).
+      - ./jwks:/jwks:ro
     ports:
       - "3000:3000"
     depends_on:

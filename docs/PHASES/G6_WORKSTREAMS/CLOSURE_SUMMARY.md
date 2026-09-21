@@ -233,11 +233,6 @@ All in `agentgate/qa/g6enforcement/enforcement_test.go`, verified by `go build .
 
 ### 5.3 What remains open
 
-- **DoD item "live surface run at least once against a real topology"** is **not yet closed** —
-  it depends on AI/Gateway team's G7 Task A (portable `run-e2e-matrix.ps1`, live topology
-  reachable from a clean checkout; see `docs/PHASES/G7_WORKSTREAMS/02_AI_GATEWAY_G7.md` §2). Once
-  that lands, run the new `*_LiveE2E` suite against it and capture the output here, replacing
-  `G6_GATEWAY_CONTRACT_OBSERVED.json` as this checkpoint's live evidence.
 - Reason-code-level assertions (proving *which* `decision.ReasonCode` denied each scenario, not
   just that a `PermissionDenied` code came back) would make these tests materially stronger and
   would have caught the identity-masking issue immediately. Not done here — `executeCall` only
@@ -247,3 +242,100 @@ All in `agentgate/qa/g6enforcement/enforcement_test.go`, verified by `go build .
   legitimate, separate hardening item — tracked as Backend work in
   `docs/PHASES/PROGRESS_AND_ROADMAP.md` §3 (G10).
 - **O-004 (Supported MCP revision):** High priority. Pinned fixture uses MCP `tools/call` JSON-RPC 2.0. Formal negotiation of multiple MCP revisions will be finalized in future milestones.
+
+## 6. Corrective-Closeout Addendum, Part 2 (2026-09-21, G7 Task A environment half)
+
+**Still does not reopen G6's verdict above.** This closes the one item §5.3 left open — the live
+suite had never actually run against a real topology. Doing so surfaced two further findings,
+both now fixed. AI/Gateway's Task A was taken over directly in this session (the assigned team
+was unavailable) rather than left blocking G7 indefinitely — see
+`docs/PHASES/G7_WORKSTREAMS/02_AI_GATEWAY_G7.md` for that ticket's original scope.
+
+### 6.1 What was found
+
+1. **The path bug** (`deploy/g6/run-e2e-matrix.ps1` line 10, hardcoded
+   `d:\PROJECTS\AgentGate_Hackathon\agentgate-repo\.tmp`) — fixed, now derived from `$PSScriptRoot`.
+
+2. **`deploy/g6/agentgateway.yaml` had no JWT authentication filter at all.** Confirmed by running
+   `probe-client` directly against the live topology before any fix:
+   `AgentGate Authorization Denied: invalid_identity (missing_claim: required claim "sub" is
+   absent)`. Since `internal/authz.Adapter.extractClaims` trusts identity **only** from
+   gateway-verified JWT metadata, never client headers (`docs/SECURITY/PRODUCTION-INVARIANTS.md`),
+   this meant **no request through this topology could ever produce an authenticated ALLOW** —
+   not just in the new `_LiveE2E` suite, but in this same script's own outage/recovery steps
+   (4/5), which use the identical header-only approach via `probe-client`.
+
+3. **This explains why the original `G6_GATEWAY_CONTRACT_OBSERVED.json` looked like it proved a
+   real ALLOW, and didn't.** Re-reading that file: its `"metadata": {}` is empty, and its capture
+   used `probe-authz` (`docker-compose.yml`'s always-allow stub, `G6_AUTHZ_MODE: "allow"`,
+   `profiles: ["probe-only"]`), not the real `agentgate` binary. It genuinely proved agentgateway's
+   ext_authz callout mechanism works structurally (headers/body reach the callout) — it never
+   proved a real, JWT-verified, policy-evaluated ALLOW. That distinction was not stated in the
+   original evidence file.
+
+4. **A real bug in AgentGate's own Go code**, found only once a working JWT filter existed to
+   test against: `internal/authz/adapter.go`'s `extractClaims` read JWT fields directly off the
+   `envoy.filters.http.jwt_authn` metadata struct — but the pinned `agentgateway:v1.4.0` actually
+   nests the payload one level deeper, under a `jwt_payload` key. Confirmed by temporary diagnostic
+   logging against the live gateway:
+   `{"jwt_payload":{"aud":"agentgate-g6","sub":"agent-reader","roles":"reader",...}}`. This bug had
+   never been caught because nothing had ever exercised a real JWT against this code path before
+   (see finding 2). **This crosses into Backend's domain** (`internal/authz/*` Go source) — flagged
+   explicitly here rather than silently fixed and left undocumented, per the ticket's own
+   "do not touch `agentgate/internal/*`" boundary; done anyway because the same agent covers both
+   teams' work this checkpoint and leaving it broken would have left the live suite permanently red.
+
+### 6.2 What was fixed
+
+1. `deploy/g6/run-e2e-matrix.ps1` — portable `$GOTMPDIR`.
+2. `deploy/g6/agentgateway.yaml` — added a `jwtAuth` block (`mode: strict`), mirroring
+   `gateway/config/g1-agentgateway.yaml`'s already-validated schema. Dev-only fixture signing key;
+   see `deploy/g6/jwks/README.md`.
+3. `deploy/g6/docker-compose.yml` — mounts `./jwks:/jwks:ro` (empirically confirmed agentgateway
+   resolves the config's relative `./jwks/...` path against its own process cwd, not the config
+   file's directory).
+4. `internal/authz/adapter.go` — `extractClaims` now reads from the nested `jwt_payload` struct
+   when present, falling back to flat top-level fields otherwise (forward-compatible if
+   agentgateway's shape ever changes). Existing in-process unit tests (which construct
+   `MetadataContext` directly with flat fields) are unaffected — confirmed by the full `go test
+   ./...` run below.
+5. `deploy/g6/probe-client` — new `jwt.go` mints a real signed JWT from the existing
+   `-agent-id`/`-roles`/`-obo` flags when no `-token` is explicitly given, so the script's
+   outage/recovery steps (4/5) now carry real identity too, not just the new Go test suite.
+6. `agentgate/qa/g6enforcement/jwt_fixture_test.go` — the matching JWT minter for the Go test
+   suite. Deliberately duplicated (not shared) with `probe-client`'s copy — separate Go modules,
+   no existing shared-code path; see `deploy/g6/jwks/README.md` for the reasoning.
+7. Updated the `_LiveE2E` scenarios that need real identity to send it
+   (`qa/g6enforcement/enforcement_test.go`, Scenarios 01/02/03/05/06/08/09/10/11), and tightened
+   Scenario 11's assertion from "not 200" to the specific expected 403 — the loose version would
+   have silently accepted a gateway-level 401 as "proof" of AgentGate's own malformed-JSON
+   handling, the same class of issue this whole closeout exists to fix.
+8. Scenarios 04 and 06 needed a different fix: with `jwtAuth.mode: strict` now active,
+   agentgateway itself rejects **any** request lacking a JWT — 401 — before ext_authz is ever
+   called. For Scenario 04 (intentionally no identity at all), that 401 **is** the correct
+   outcome (denial, just one layer earlier than before) — the assertion was updated to expect it,
+   with a comment explaining why. For Scenario 06 (proving AgentGate's own non-tool-method
+   rejection), a real JWT was added instead, so the test reaches and exercises the check it
+   actually claims to test rather than being incidentally denied by the gateway's own JWT layer.
+9. Added a CI job (`.github/workflows/ci.yml`, `g6-live-e2e`) running this exact script via `pwsh`
+   on `ubuntu-latest` (which ships Docker and PowerShell Core by default) — DoD item 4. No
+   secrets needed; every credential in this topology is an explicit dev fixture.
+
+### 6.3 Evidence
+
+Full, unedited output of `deploy/g6/run-e2e-matrix.ps1` run from a clean `docker compose down -v`
++ rebuild, replacing `G6_GATEWAY_CONTRACT_OBSERVED.json`: `deploy/g6/g7_live_run_output.txt`.
+Summary: all 22 Go test functions pass (12 unit + 10 live — Scenarios 07 and 12 have no live
+counterpart, see the G7 Task A code addendum above), live outage fail-closed verified (0 backend
+calls), live recovery verified (1 backend call with real JWT-verified identity), durable audit
+trail with intact SHA-256 hash chain verified directly against PostgreSQL (10 real rows: ALLOW,
+DENY×policy_deny, DENY×malformed_request, DENY×evaluation_error, and a policy activation
+mutation event, all correctly chained).
+
+### 6.4 What remains open
+
+- The dev-fixture JWT signing key (`deploy/g6/jwks/`) is duplicated as a hardcoded Go string
+  constant in two separate Go modules rather than factored into a shared package — deliberate,
+  not an oversight; see `deploy/g6/jwks/README.md`.
+- AI/Gateway's Task B (realistic demonstration system, `deploy/demo/`) is separate work, not
+  covered by this addendum.

@@ -183,7 +183,16 @@ func main() {
 	skipInitFlag := flag.Bool("skip-init", false, "Skip initialize handshake")
 	flag.Parse()
 
-	client := NewClient(*urlFlag, *tokenFlag)
+	token := *tokenFlag
+	// AgentGate trusts identity only from a gateway-verified JWT, never
+	// from plain headers (docs/SECURITY/PRODUCTION-INVARIANTS.md) — mint
+	// one from the same agent-id/roles/obo flags this client already
+	// accepted, unless the caller supplied a real token explicitly.
+	if token == "" && *agentIDFlag != "" {
+		token = mintJWT(*agentIDFlag, *rolesFlag, *oboFlag)
+	}
+
+	client := NewClient(*urlFlag, token)
 	client.AgentID = *agentIDFlag
 	client.Roles = *rolesFlag
 	client.OnBehalfOf = *oboFlag

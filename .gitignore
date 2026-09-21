@@ -9,6 +9,10 @@ docs/PHASES/*_WORKSTREAMS/results
 # Go build/test artifacts
 /agentgate/agentgate
 /agentgate/agentgate.exe
+/deploy/g6/probe-client/probe-client
+/deploy/g6/probe-client/probe-client.exe
+/deploy/demo/support-desk-mcp/support-desk-mcp
+/deploy/demo/support-desk-mcp/support-desk-mcp.exe
 *-linux
 .tmp/
 *.test
