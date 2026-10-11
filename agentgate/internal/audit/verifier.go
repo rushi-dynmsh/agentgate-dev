@@ -70,21 +70,22 @@ func (v *ChainVerifier) VerifyWorkspace(ctx context.Context, store Store, worksp
 
 		// 3. Recompute canonical payload and detect in-place column modification
 		dRec := DecisionRecord{
-			WorkspaceID:         rec.WorkspaceID,
-			ExecutionID:         rec.ExecutionID,
-			Timestamp:           rec.Timestamp,
-			EventType:           rec.EventType,
-			Decision:            rec.Decision,
-			Reason:              rec.Reason,
-			PrincipalAgentID:    rec.PrincipalAgentID,
-			PrincipalRoles:      rec.PrincipalRoles,
-			PrincipalOnBehalfOf: rec.PrincipalOnBehalfOf,
-			ToolBackendID:       rec.ToolBackendID,
-			ToolName:            rec.ToolName,
-			ToolRisk:            rec.ToolRisk,
-			PolicyVersion:       rec.PolicyVersion,
-			PolicyHash:          rec.PolicyHash,
-			RedactedArguments:   rec.RedactedArguments,
+			WorkspaceID:             rec.WorkspaceID,
+			ExecutionID:             rec.ExecutionID,
+			Timestamp:               rec.Timestamp,
+			EventType:               rec.EventType,
+			Decision:                rec.Decision,
+			Reason:                  rec.Reason,
+			PrincipalAgentID:        rec.PrincipalAgentID,
+			PrincipalRoles:          rec.PrincipalRoles,
+			PrincipalOnBehalfOf:     rec.PrincipalOnBehalfOf,
+			ToolBackendID:           rec.ToolBackendID,
+			ToolName:                rec.ToolName,
+			ToolRisk:                rec.ToolRisk,
+			PolicyVersion:           rec.PolicyVersion,
+			PolicyHash:              rec.PolicyHash,
+			RedactedArguments:       rec.RedactedArguments,
+			DownstreamCredentialRef: rec.DownstreamCredentialRef,
 		}
 
 		recomputedCanonical, err := ComputeCanonicalPayload(dRec)

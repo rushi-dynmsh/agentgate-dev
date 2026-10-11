@@ -5,6 +5,25 @@ gateways:
   default:
     port: 3000
 
+    # --- JWT validation (agentgateway's job; AgentGate never re-verifies signatures) ---
+    # Added G7 Task A: this block was missing entirely, meaning no request through
+    # this topology could ever carry gateway-verified identity — internal/authz's
+    # extractClaims trusts ONLY MetadataContext.FilterMetadata["envoy.filters.http.jwt_authn"],
+    # never client headers (docs/SECURITY/PRODUCTION-INVARIANTS.md), so every call was
+    # denied for missing identity regardless of what headers a client sent. Confirmed by
+    # running probe-client against this exact topology before this fix:
+    #   "AgentGate Authorization Denied: invalid_identity (missing_claim: required claim
+    #   \"sub\" is absent)"
+    # Schema mirrors gateway/config/g1-agentgateway.yaml's jwtAuth block, which was
+    # already schema-validated against the real binary. Dev-only fixture key — see
+    # deploy/g6/jwks/README.md; never a real secret, never used outside this topology.
+    jwtAuth:
+      mode: strict
+      issuer: https://g6-dev-fixture.invalid/
+      audiences: ["agentgate-g6"]
+      jwks:
+        file: ./jwks/dev-fixture-jwks.json
+
 routes:
   - policies:
       extAuthz:

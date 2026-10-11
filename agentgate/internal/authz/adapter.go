@@ -90,6 +90,22 @@ func (a *Adapter) Adapt(ctx context.Context, checkReq *authv3.CheckRequest) (dec
 		}
 	}
 
+	registry := a.cfg.ToolRegistry
+	argDecls := a.cfg.ArgDeclarations
+	byToolIDOnly := false
+	if a.cfg.Catalog != nil {
+		snap := a.cfg.Catalog.Current()
+		if snap == nil {
+			return decision.Request{}, &AdapterError{
+				ReasonCode: decision.ReasonUnknownTool,
+				Message:    "tool catalog not available",
+			}
+		}
+		registry = snap.Registry
+		argDecls = snap.ArgDecls
+		byToolIDOnly = true
+	}
+
 	httpReq := checkReq.Attributes.Request.Http
 	headers := httpReq.Headers
 	if headers == nil {
@@ -202,7 +218,7 @@ func (a *Adapter) Adapt(ctx context.Context, checkReq *authv3.CheckRequest) (dec
 		ToolName:  toolName,
 	}
 
-	if a.cfg.ToolRegistry == nil {
+	if registry == nil {
 		return decision.Request{}, &AdapterError{
 			ReasonCode: decision.ReasonUnknownTool,
 			Message:    "tool registry not configured",
@@ -217,18 +233,34 @@ func (a *Adapter) Adapt(ctx context.Context, checkReq *authv3.CheckRequest) (dec
 		liveFP = toolregistry.SchemaFingerprint(checkReq.Attributes.ContextExtensions["tool_fingerprint"])
 	}
 
-	govRecord := a.cfg.ToolRegistry.Lookup(toolID, liveFP)
+	govRecord := registry.Lookup(toolID, liveFP)
 	if !govRecord.Known {
 		return decision.Request{}, &AdapterError{
-			ReasonCode: decision.ReasonUnknownTool,
-			Message:    fmt.Sprintf("tool %s is not registered in governance catalog", toolID),
+			ReasonCode:  decision.ReasonUnknownTool,
+			Message:     fmt.Sprintf("tool %s is not registered in governance catalog", toolID),
+			ToolName:    toolName,
+			BackendID:   backendID,
+			WorkspaceID: workspaceID,
+			Identity: decision.Identity{
+				AgentID:    mappedIdentity.AgentID,
+				Roles:      mappedIdentity.Roles,
+				OnBehalfOf: mappedIdentity.OnBehalfOf,
+			},
 		}
 	}
 
 	if govRecord.DriftStatus == toolregistry.DriftDetected {
 		return decision.Request{}, &AdapterError{
-			ReasonCode: decision.ReasonUnknownTool,
-			Message:    fmt.Sprintf("tool %s schema drift detected", toolID),
+			ReasonCode:  decision.ReasonUnknownTool,
+			Message:     fmt.Sprintf("tool %s schema drift detected", toolID),
+			ToolName:    toolName,
+			BackendID:   backendID,
+			WorkspaceID: workspaceID,
+			Identity: decision.Identity{
+				AgentID:    mappedIdentity.AgentID,
+				Roles:      mappedIdentity.Roles,
+				OnBehalfOf: mappedIdentity.OnBehalfOf,
+			},
 		}
 	}
 
@@ -243,9 +275,9 @@ func (a *Adapter) Adapt(ctx context.Context, checkReq *authv3.CheckRequest) (dec
 	// 6. Argument Resolution
 	var resolvedArgs map[string]argdecl.ResolvedArg
 	var declSet *argdecl.DeclarationSet
-	if ds, ok := a.cfg.ArgDeclarations[toolID.String()]; ok {
+	if ds, ok := argDecls[toolID.String()]; ok {
 		declSet = ds
-	} else if ds, ok := a.cfg.ArgDeclarations[toolName]; ok {
+	} else if ds, ok := argDecls[toolName]; ok && !byToolIDOnly {
 		declSet = ds
 	}
 
@@ -293,7 +325,26 @@ func (a *Adapter) extractClaims(checkReq *authv3.CheckRequest) map[string]string
 	// Read claims ONLY from Envoy JWT filter metadata populated after cryptographic verification
 	if checkReq != nil && checkReq.Attributes != nil && checkReq.Attributes.MetadataContext != nil && checkReq.Attributes.MetadataContext.FilterMetadata != nil {
 		if jwtMetadata, ok := checkReq.Attributes.MetadataContext.FilterMetadata["envoy.filters.http.jwt_authn"]; ok && jwtMetadata != nil {
-			for k, v := range jwtMetadata.Fields {
+			// The pinned agentgateway:v1.4.0 nests the actual JWT payload one
+			// level deeper, under a "jwt_payload" field — found and confirmed
+			// by live diagnostic (G7 Task A): a struct like
+			// {"jwt_payload":{"sub":"...","roles":"...", ...}}, not the claims
+			// flat at the top level as this code previously assumed. That
+			// assumption was never exercised against a real JWT before —
+			// deploy/g6/agentgateway.yaml had no jwtAuth block at all until
+			// this same checkpoint added one, and the original manual G6
+			// evidence capture used the always-allow probe-authz stub
+			// (docs/PHASES/G6_WORKSTREAMS/G6_GATEWAY_CONTRACT_OBSERVED.json
+			// shows "metadata": {} — empty), not a real JWT flow. Falls back
+			// to reading fields flat, for forward-compatibility if agentgateway
+			// or its config ever changes to emit claims at the top level.
+			fields := jwtMetadata.Fields
+			if payload, ok := fields["jwt_payload"]; ok && payload != nil {
+				if payloadStruct := payload.GetStructValue(); payloadStruct != nil {
+					fields = payloadStruct.Fields
+				}
+			}
+			for k, v := range fields {
 				claims[k] = structpbValueToString(v)
 			}
 		}

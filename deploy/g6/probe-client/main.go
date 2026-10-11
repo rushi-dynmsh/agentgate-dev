@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -181,9 +182,23 @@ func main() {
 	argsFlag := flag.String("args", "{}", "Tool arguments JSON")
 	rawFlag := flag.String("raw", "", "Raw JSON payload to send directly")
 	skipInitFlag := flag.Bool("skip-init", false, "Skip initialize handshake")
+	printTokenFlag := flag.Bool("print-token", false, "Print the inbound bearer token to stderr (test evidence only)")
 	flag.Parse()
 
-	client := NewClient(*urlFlag, *tokenFlag)
+	token := *tokenFlag
+	// AgentGate trusts identity only from a gateway-verified JWT, never
+	// from plain headers (docs/SECURITY/PRODUCTION-INVARIANTS.md) — mint
+	// one from the same agent-id/roles/obo flags this client already
+	// accepted, unless the caller supplied a real token explicitly.
+	if token == "" && *agentIDFlag != "" {
+		token = mintJWT(*agentIDFlag, *rolesFlag, *oboFlag)
+	}
+
+	if *printTokenFlag {
+		fmt.Fprintln(os.Stderr, "INBOUND_TOKEN="+token)
+	}
+
+	client := NewClient(*urlFlag, token)
 	client.AgentID = *agentIDFlag
 	client.Roles = *rolesFlag
 	client.OnBehalfOf = *oboFlag

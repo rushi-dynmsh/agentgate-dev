@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "g6-dev-fixture-key-1",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "tRCOLetnN3HQgwJONY8SyWoCwUwbq-2mBVvOaFXPJfSw1sJVXWQ5sHKpxOTiEUbcQqRnhvIvG9bK7CrzjFffpfD-EWtI3pqo10ekQa9RP1iFGrCcU9PRblyVWWaSAMzHxTiWq5fo3T0-PwT4HZPHindAPwJlhUF2U5HNFrDerp1VDUf8uN4A8LtKurbBRsdeHmZTYQx-7EFnfQFO2zObAMVJid8mYjp5bDFW2QdBPzomZGbZI12fNII8dzyzcK2oyqYDTvNKmgbI6QFKymkPiHKeb-XJZnEOEk8jglIpTMx4KwBwQcr1UmwfKEC36ZWnZAN5LoFDNspmG7OOcew_VQ",
+      "e": "AQAB"
+    }
+  ]
+}

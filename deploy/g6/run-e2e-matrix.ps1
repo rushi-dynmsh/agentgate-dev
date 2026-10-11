@@ -7,7 +7,11 @@ Write-Host "================================================================" -F
 Write-Host "  AgentGate Gate G6: Real MCP Enforcement End-to-End Matrix   " -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan
 
-$env:GOTMPDIR = "d:\PROJECTS\AgentGate_Hackathon\agentgate-repo\.tmp"
+# Portable: derived from this script's own location, not hardcoded to any
+# one developer's checkout/drive letter (G7 Task A — see
+# docs/PHASES/G7_WORKSTREAMS/02_AI_GATEWAY_G7.md §2).
+$repoRootForTmp = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
+$env:GOTMPDIR = Join-Path $repoRootForTmp ".tmp"
 if (!(Test-Path $env:GOTMPDIR)) {
     New-Item -ItemType Directory -Path $env:GOTMPDIR -Force | Out-Null
 }
