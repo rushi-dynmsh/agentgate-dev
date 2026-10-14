@@ -10,11 +10,36 @@ $deployDir = Resolve-Path "$scriptDir/../.."
 $demoCompose = "$deployDir/prod/docker-compose.yml"
 $secretsDir = "$deployDir/prod/secrets"
 
+# Windows PowerShell 5.1 wraps ANY stderr line from a native command (docker,
+# docker compose, ...) into a terminating NativeCommandError under
+# $ErrorActionPreference = "Stop", even on exit code 0 — and `docker compose`
+# normally prints its "Container X Running/Started/Healthy" progress to
+# stderr. Run native commands through this helper instead of calling them
+# directly, so routine progress output does not abort the script; it still
+# fails (via $LASTEXITCODE) on a genuine non-zero exit.
+function Invoke-Native {
+    param([Parameter(Mandatory)][scriptblock]$Command, [string]$FailMessage = "Command failed")
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $Command
+    } finally {
+        $ErrorActionPreference = $prevEAP
+    }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "$FailMessage (exit code $LASTEXITCODE)"
+    }
+}
+
 if ($Down) {
     if ($Volumes) {
-        docker compose -f $demoCompose --profile demo down -v
+        Invoke-Native -FailMessage "Failed to tear down the demo stack" -Command {
+            docker compose -f $demoCompose --profile demo down -v
+        }
     } else {
-        docker compose -f $demoCompose --profile demo down
+        Invoke-Native -FailMessage "Failed to tear down the demo stack" -Command {
+            docker compose -f $demoCompose --profile demo down
+        }
     }
     exit 0
 }
@@ -30,11 +55,15 @@ Write-Host "--> Initializing secrets (idempotent)"
 & "$scriptDir/init-secrets.ps1"
 
 Write-Host "--> Starting postgres first to let it initialize..."
-docker compose -f $demoCompose --profile demo up -d postgres
+Invoke-Native -FailMessage "Failed to start postgres" -Command {
+    docker compose -f $demoCompose --profile demo up -d postgres
+}
 Start-Sleep -Seconds 10
 
 Write-Host "--> Starting demo-mode stack"
-docker compose -f $demoCompose --profile demo up -d --build
+Invoke-Native -FailMessage "Failed to start the demo stack" -Command {
+    docker compose -f $demoCompose --profile demo up -d --build
+}
 
 Write-Host "--> Waiting for readiness..."
 # Wait for Keycloak healthy
@@ -72,7 +101,9 @@ if ($Reset) {
 
     Write-Host "1. Resetting demo backend seed data..."
     # Call the backend's reset endpoint from within the network
-    docker run --rm --network agentgate-prod --entrypoint wget alpine -qO- http://support-desk-mcp:9200/_demo/reset 2>&1 | Out-Null
+    Invoke-Native -FailMessage "Failed to reset demo backend seed data" -Command {
+        docker run --rm --network agentgate-prod --entrypoint wget alpine -qO- http://support-desk-mcp:9200/_demo/reset | Out-Null
+    }
     
     # Authenticate to Admin API
     $adminUser = "agentgate-ops-cli"
@@ -116,7 +147,9 @@ if ($Reset) {
         -d $rollbackBody | Out-Null
         
     Write-Host "4. Restarting demo-agent container..."
-    docker compose -f $demoCompose restart demo-agent | Out-Null
+    Invoke-Native -FailMessage "Failed to restart demo-agent" -Command {
+        docker compose -f $demoCompose restart demo-agent | Out-Null
+    }
 }
 
 $adminUiPass = (Get-Content "$secretsDir/admin_initial_password").Trim()
