@@ -13,42 +13,44 @@
 
 ## 3. Step-by-Step Execution
 
+**Correction (2026-10-14): the tool used here is `update_ticket_status`, not `close_ticket` — there is no `close_ticket` tool anywhere in the real system (checked against `deploy/demo/support-desk-mcp/main.go` — note the tool *server's* folder is named `support-desk-mcp`, but it registers itself in the live catalog under the backend id `mcp-probe`, which is the name that actually appears in the Tools and Audit pages), so the original version of this scenario would fail with "unknown tool" instead of demonstrating reclassification. Also use the `agent-admin` identity, not `agent-reader`: under the baseline policy, `update_ticket_status` is risk `write`, and a reader is never allowed `write` — so a reader's call would already be denied before you touch anything, with nothing visibly changing when you reclassify. Admin is allowed `read` and `write` but explicitly forbidden from `destructive`, which is what makes the before/after actually visible.**
+
 ### Step 1: Observe the Initial State (Allowed Call)
-In terminal, test calling `close_ticket` as `agent-reader`. By default, `close_ticket` is classified as `write` (which the reader agent is currently allowed or configured to run depending on baseline policy):
+In terminal, call `update_ticket_status` as `agent-admin`. Under the baseline policy it is classified `write`, which admin is allowed:
 
 ```powershell
-$agentSecret = (Get-Content deploy/prod/secrets/agent_reader_secret).Trim()
+$agentSecret = (Get-Content deploy/prod/secrets/agent_admin_secret).Trim()
 $tokenResp = curl.exe -k -s -X POST https://localhost:8443/realms/agentgate/protocol/openid-connect/token `
     -H "Content-Type: application/x-www-form-urlencoded" `
-    -d "grant_type=client_credentials&client_id=agent-reader&client_secret=$agentSecret"
+    -d "grant_type=client_credentials&client_id=agent-admin&client_secret=$agentSecret"
 $agentToken = ($tokenResp | ConvertFrom-Json).access_token
 
+$payload = '{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"update_ticket_status\",\"arguments\":{\"ticket_id\":\"TCK-1002\",\"new_status\":\"resolved\"}}}'
 curl.exe -k -s -i -X POST https://localhost:3443/ `
     -H "Authorization: Bearer $agentToken" `
     -H "Content-Type: application/json" `
-    -d '{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"close_ticket\",\"arguments\":{\"ticket_id\":\"TCK-1002\",\"reason\":\"Resolved\"}}}'
+    -d $payload
 ```
-*(Notice: If close_ticket is read/write in baseline, it succeeds or behaves per baseline policy).*
+*(Expected: `200 OK` — admin is allowed both read and write tools under the baseline policy.)*
 
 ---
 
 ### Step 2: Reclassify the Tool Live in the UI
 Now switch to your browser:
 1. Go to **`https://localhost:8444/tools`** (Tools & Resources).
-2. Look at the `support-desk-mcp` section.
-3. Locate the tool named **`close_ticket`**.
+2. Look at the `mcp-probe` section.
+3. Locate the tool named **`update_ticket_status`**.
 4. Click the **Edit** button next to it.
 5. In the dialog:
    - Change the **Risk level** dropdown to **`destructive`**.
-   - A warning appears: *"Warning: Changing risk level to destructive modifies authorization boundaries"*.
-   - Check the confirmation box: **"I understand this changes authorization for all agents"**.
+   - Check the confirmation box: **"I understand this changes authorization for all agents"** (only appears because you're moving *to* destructive).
    - Click **Save**.
-6. The table refreshes immediately showing `close_ticket` with a red **`destructive`** badge.
+6. The table refreshes immediately showing `update_ticket_status` with a red **`destructive`** badge.
 
 ---
 
 ### Step 3: Trigger the Tool Call Again (Immediate Denial)
-Return to your PowerShell terminal and run the exact same command from Step 1 again:
+Return to your PowerShell terminal and run the exact same command from Step 1 again (reuse the `$payload` and `$agentToken` variables already in your session):
 
 ```powershell
 curl.exe -k -s -i -X POST https://localhost:3443/ `

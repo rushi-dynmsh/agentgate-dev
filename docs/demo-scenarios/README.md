@@ -9,6 +9,12 @@ Welcome to the end-to-end execution guide for AgentGate. This repository contain
 
 ---
 
+## A note on exact wording in these scenarios
+
+Each scenario shows example terminal output and UI text to help you know what to expect. Two things are guaranteed and verified against the real code: the HTTP status code (e.g. `403`), and that the Audit page shows a new row with the right decision (ALLOW/DENY) and tool name. The exact JSON field names and English wording in the printed examples have not all been individually re-verified against the running server and may differ slightly from what you actually see. If the on-screen result differs in wording but matches on status code and ALLOW/DENY, trust the screen, not this document, and keep going — don't stop to debug a wording mismatch live.
+
+---
+
 ## System Components Quick Map
 
 When the demo stack runs, here is what is running on your machine:

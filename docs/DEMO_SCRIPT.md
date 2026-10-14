@@ -6,18 +6,30 @@
 
 ---
 
-## Pre-Flight Checklist (T - 5 minutes)
+## Pre-Flight Checklist (T - 5 minutes, do this the night before too)
 
 Before starting the presentation:
-- [ ] Ensure Docker Desktop is active.
-- [ ] Run state reset: `.\deploy\prod\scripts\demo-mode.ps1 -Reset`
-- [ ] Open the following browser tabs:
-  1. **Landing Page & Documentation:** `http://localhost:3000` (or local static preview)
-  2. **Admin Console:** `https://localhost:8444` (Logged in as `admin`)
-  3. **Keycloak Realm Console (optional):** `https://localhost:8443/admin`
-- [ ] Verify console media and screenshots are loaded (`/media/manifest.json`).
-- [ ] Test offline capability: verify that pages render cleanly with zero external asset dependencies.
-- [ ] Have fallback video ready: `website/static/media/walkthrough.webm`.
+- [ ] Ensure Docker Desktop is active (open it, wait for "Engine running").
+- [ ] Start and reset the stack. In PowerShell, from the repo root:
+      ```powershell
+      .\deploy\prod\scripts\demo-mode.ps1 -Reset
+      ```
+      Wait for it to print `AgentGate Demo Environment is Running`. The first run after a reboot can take several minutes (it rebuilds images); a repeat run is faster.
+- [ ] Start the documentation/landing site, in a **second** PowerShell window (leave it running):
+      ```powershell
+      cd website
+      npm run serve -- --port 3000
+      ```
+- [ ] Open three browser tabs:
+  1. **Landing Page & Documentation:** `http://localhost:3000`
+  2. **Admin Console:** `https://localhost:8444` — your browser will warn about the certificate; click "Advanced" → "Proceed". Click **Sign in with SSO**, username `admin`, password from:
+     ```powershell
+     Get-Content deploy\prod\secrets\admin_initial_password
+     ```
+  3. A spare blank tab for anything you need mid-demo.
+- [ ] Confirm the landing page's media loads: open `http://localhost:3000/media/manifest.json` directly — it should show JSON, not an error.
+- [ ] Have the fallback video ready in case anything misbehaves live: `website/static/media/walkthrough.webm` (open it once beforehand so it's not the first time it plays).
+- [ ] **Do a full dry run of this entire script, once, before the real thing.** That's the only way to catch anything specific to your machine.
 
 ---
 
@@ -27,7 +39,7 @@ Before starting the presentation:
 - **Talking Point:** "AI agents are taking autonomous actions in production, but without a dedicated control plane, organizations risk tool abuse, schema injection, and untracked lateral movement. AgentGate is the deterministic checkpoint in the only path between an agent and its tools."
 - **Action:** Introduce the architecture diagram (`brand/diagrams/system-flow.svg`).
 - **Expected Result:** Clear alignment on the gateway position: agents can only reach tools through AgentGate.
-- **Fallback:** Use the static architecture diagram in `docs/concepts.md`.
+- **Fallback:** Use the static architecture diagram on the live site at `http://localhost:3000/docs/concepts` (source file: `website/docs/concepts.md`).
 
 ---
 
@@ -60,36 +72,47 @@ Before starting the presentation:
   2. In the **Decision** dropdown, filter by `DENY`.
   3. Expand a denied row to show the evaluation context: principal agent, requested tool, evaluated Cedar policy version, and rejection reason.
   4. Switch filter back to `All` to show interleaved live events.
-- **Expected Result:** Instant reactive filtering without page reload. Denied events show detailed reason codes.
+- **Expected Result:** Instant reactive filtering without page reload. Denied events show a reason code such as `policy_deny` or `unknown_tool` (verified live on 2026-10-14; the gateway also returns this as an `x-agentgate-reason` response header on the original call, not a JSON error body, if anyone asks to see the raw HTTP response).
 - **Fallback:** View the recorded audit page sequence in `walkthrough.webm`.
 
 ---
 
 ### Step 4: Live Tool Reclassification (07:00 – 08:30)
+Full script with exact commands: [`docs/demo-scenarios/03-live-tool-reclassification.md`](./demo-scenarios/03-live-tool-reclassification.md).
 - **Talking Point:** "Security administrators can adjust tool risk classifications instantly without restarting backend microservices."
 - **Action:**
-  1. Click **Tools & resources** in the navigation (`/tools`).
-  2. Locate the `support-desk-mcp/close_ticket` tool.
-  3. Click **Edit**. Change the risk classification from `read` to `write` (or `destructive`).
-  4. If `destructive`, tick the confirmation: *"I understand this changes authorization for all agents"*.
-  5. Click **Save**.
-  6. Return to **Audit Log** (`/audit`) to demonstrate that subsequent invocations immediately evaluate against the updated classification.
-- **Expected Result:** The tool updates in place, and the agent's policy permits or denies based on the new risk profile.
-- **Fallback:** Use API curl directly: `curl -k -X PUT https://localhost:9443/api/v1/tools/support-desk-mcp/close_ticket ...`
+  1. (Optional, in a terminal first) Call `update_ticket_status` as the `agent-admin` identity — it succeeds, since admin is allowed write today. Exact command is in the linked scenario doc.
+  2. Click **Tools & resources** in the navigation (`/tools`).
+  3. Locate the `mcp-probe/update_ticket_status` tool.
+  4. Click **Edit**. Change the risk classification to `destructive`.
+  5. Tick the confirmation: *"I understand this changes authorization for all agents"*.
+  6. Click **Save**.
+  7. Repeat the same terminal call from step 1 (or just narrate it) — it is now denied, because no role is allowed `destructive` tools.
+  8. Return to **Audit Log** (`/audit`) to show the new DENY row.
+- **Expected Result:** The tool updates in place; the exact same call that worked a moment ago is now blocked.
+- **Fallback — verified working on 2026-10-14 against a freshly reset stack:**
+  ```powershell
+  $opsPass = (Get-Content deploy\prod\secrets\ops_cli_client_secret).Trim()
+  $tokenResp = curl.exe -k -s -X POST https://localhost:8443/realms/agentgate/protocol/openid-connect/token -d "grant_type=client_credentials&client_id=agentgate-ops-cli&client_secret=$opsPass"
+  $adminToken = ($tokenResp | ConvertFrom-Json).access_token
+  curl.exe -k -s -X PUT https://localhost:9443/api/v1/tools/mcp-probe/update_ticket_status -H "Authorization: Bearer $adminToken" -H "Content-Type: application/json" -d '{\"risk\":\"destructive\",\"schema\":{\"type\":\"object\",\"properties\":{\"ticket_id\":{\"type\":\"string\"},\"new_status\":{\"type\":\"string\"}}},\"arguments\":[{\"name\":\"ticket_id\",\"type\":\"string\",\"required\":true},{\"name\":\"new_status\",\"type\":\"string\",\"required\":true}],\"description\":\"\"}'
+  ```
+  This is a full replace, not a partial patch — the field is `risk` (not `risk_level`), and the request must repeat the tool's existing schema/arguments or the API rejects it. **Do not build this JSON body from a PowerShell variable/hashtable and pass it as `-d $variable`** — that silently mangles it and curl reports a misleading "malformed request body". Use the literal, hand-escaped string exactly as shown (this is the same style every other command in this document already uses).
 
 ---
 
 ### Step 5: Policy Lifecycle: Dry-Run, Activate & Rollback (08:30 – 10:30)
-- **Talking Point:** "AgentGate treats security policies like code: versioned, staged, dry-run tested against historical traffic, and instantly rollbackable."
+Full script: [`docs/demo-scenarios/05-policy-dryrun-and-rollback.md`](./demo-scenarios/05-policy-dryrun-and-rollback.md).
+- **Talking Point:** "AgentGate treats security policies like code: versioned, staged, dry-run tested, and instantly rollbackable."
 - **Action:**
-  1. Navigate to **Policies** (`/policies`).
-  2. View active policy version `v1.0.0`.
-  3. Click **Create Candidate** (e.g. `v1.1.0-draft` restricting reader agents from all write tools).
-  4. Run **Dry-Run Analysis**: review the counterfactual impact (how many transactions in the last 24h would have flipped from ALLOW to DENY).
-  5. Explain safety guarantees before activation.
-  6. (Optional) Activate and show instant rollback capability to restore `v1.0.0` with one click.
-- **Expected Result:** Candidate passes syntax checks and renders dry-run diff clearly.
-- **Fallback:** Explain the policy staging lifecycle using `docs/policies.md`.
+  1. Navigate to **Policies** (`/policies`). View active version `v1.0.0`.
+  2. Click **Create candidate**. This opens a no-code rule builder (role, allow/deny, which risk levels) — you never type policy syntax by hand; it's generated for you and shown read-only below the form.
+  3. Find the **Admin** rule row. Under "Tool risk", **uncheck `write`**, leaving only `read` checked. This proposes a read-only lockdown for admins (e.g. for a weekend maintenance window).
+  4. Click **Validate policy**, then **Save**.
+  5. Click **Run dry run**. **Say exactly what this does — don't overstate it:** it replays the candidate against 5 fixed, representative sample requests (a reader and an admin each trying a read, a write, and a destructive action), not live historical traffic, and shows which of those 5 would flip from ALLOW to DENY. Expect the admin-write sample to flip to DENY — that's the lockdown working.
+  6. (Optional) Click **Activate policy**, then immediately click **Rollback** to show instant, one-click recovery back to `v1.0.0`.
+- **Expected Result:** The candidate is created without writing any Cedar by hand; the dry run clearly shows 1 of 5 sample decisions changing.
+- **Fallback:** Explain the policy staging lifecycle using the live docs at `http://localhost:3000/docs/policies`.
 
 ---
 
@@ -103,10 +126,11 @@ Before starting the presentation:
      ```
 - **Expected Result:** Output displays:
   ```text
-  OK 3 records
+  OK <N> records
   ```
+  where `<N>` is however many events have happened so far (it grows through the demo — don't worry about the exact number).
   *(Confirms all cryptographic hash chain links are valid with zero tampering detected)*
-- **Fallback:** Show verified audit output snippet from `docs/audit.md`.
+- **Fallback:** Show the audit page's "Audit Chain" detail panel instead — open `http://localhost:8444/audit`, expand any row.
 
 ---
 
