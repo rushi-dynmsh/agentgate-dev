@@ -51,9 +51,10 @@ cat deploy/prod/.env
 
 Key environment settings:
 - `AGENTGATE_ENV=production`: Enables strict fail-closed enforcement, production mTLS, and disables debug logging.
-- `KC_HOSTNAME=https://keycloak:8443`: Canonical hostname for OIDC token issuance.
+- `KC_HOSTNAME=https://keycloak:8443`: Canonical hostname for OIDC token issuance — this is the `iss` claim stamped into every token, and must stay consistent regardless of who calls Keycloak.
 - `AGENTGATE_UI_API_URL=https://localhost:9443`: Admin API endpoint reachable by the Admin UI browser client.
-- `AGENTGATE_UI_OIDC_AUTHORITY=https://localhost:8443/realms/agentgate`: Keycloak realm URL.
+- `AGENTGATE_UI_OIDC_AUTHORITY=https://keycloak:8443/realms/agentgate`: the realm URL the browser navigates to for login. Must equal `KC_HOSTNAME`'s realm URL in a single-machine deployment (see Known Limitation #10 — this needs a hosts-file entry so the browser can resolve `keycloak`); in a real deployment, set it to Keycloak's real public DNS name instead.
+- `AGENTGATE_UI_OIDC_ISSUER=https://keycloak:8443/realms/agentgate`: the `iss` string the Admin UI expects inside tokens — always equal to `KC_HOSTNAME`'s realm URL, never equal to a browser-only convenience hostname.
 
 ### Step 2.3: Start Production Topology
 
@@ -568,7 +569,8 @@ groups:
 | **403 Forbidden** with `policy_deny` | Agent roles do not allow target tool risk tier under active Cedar policy | `curl -k -H "Authorization: Bearer $ADMIN_TOKEN" https://localhost:9443/api/v1/tools` | Inspect audit row in database: `SELECT decision, reason FROM audit_events ORDER BY sequence_number DESC LIMIT 1`. Update policy or tool risk. |
 | **Backend 401 Unauthorized** on tool call | Downstream minted credential rejected by backend MCP server | `docker compose logs support-desk-mcp` | Backend JWKS cache stale or signing key rotated. Restart backend: `docker compose restart support-desk-mcp`. |
 | **AgentGate unhealthy / exits** | PostgreSQL connection refused or pending migration | `docker compose logs agentgate` and `docker compose ps migrate` | Ensure `prod-postgres` is healthy, then rerun `docker compose up -d migrate`. |
-| **Admin UI 401 / Login loop** | Keycloak hostname mismatch or admin user missing role | `curl -k https://localhost:8443/realms/agentgate/.well-known/openid-configuration` | Verify `KC_HOSTNAME` matches browser access URL. Check admin user has `agentgate-admin` realm role. |
+| **Admin UI login fails with `DNS_PROBE_FINISHED_NXDOMAIN`** | Browser cannot resolve the `keycloak` hostname that Keycloak's login page and redirects use (see Known Limitation #10) | Check the address bar — if it shows `keycloak:8443/...`, this is it | Add `127.0.0.1 keycloak` to the machine's hosts file (admin/root required), flush DNS, retry. Not applicable once Keycloak has a real public DNS name. |
+| **Admin UI 401 / Login loop** | `AGENTGATE_UI_OIDC_ISSUER` doesn't match the real `iss` claim Keycloak issues (`KC_HOSTNAME`'s realm URL), or admin user missing role | `curl -k https://localhost:8443/realms/agentgate/.well-known/openid-configuration` and compare its `issuer` field to `AGENTGATE_UI_OIDC_ISSUER` | Set `AGENTGATE_UI_OIDC_ISSUER` to exactly match. Check admin user has `agentgate-admin` realm role. |
 | **`verify-audit` fails (Hash Mismatch)** | Audit log row modified out-of-band or data corruption | `docker compose exec agentgate agentgate verify-audit --workspace default` | Investigate database write logs for unauthorized direct SQL execution. Restore from known good backup. |
 | **Envoy mTLS handshake fails** | Client cert or CA mismatch between `agentgateway` and `agentgate` | `docker compose logs agentgateway` | Verify `secrets/client.crt` is signed by `secrets/ca.crt` and `AGENTGATE_AUTHZ_TLS_CLIENT_CA` points to `ca.crt`. |
 
@@ -594,3 +596,9 @@ groups:
    Policies are hydrated for workspace `default` only.
 9. **CI Verification**:
    CI jobs have not run on GitHub until the branch is pushed.
+10. **Local/single-machine deployments need a hosts-file entry for the Admin UI login** (discovered 2026-10-14):
+    Keycloak's `KC_HOSTNAME` is fixed to the Docker Compose service name `keycloak` so that the `iss` claim backend services validate against stays constant regardless of which caller reached Keycloak. Keycloak's own server-rendered pages (the login form, its action URL, any in-flow redirects) always use that same fixed hostname too — not just the OIDC discovery document. On a developer laptop or single-machine demo deployment, the browser cannot resolve `keycloak` by default, so the interactive "Sign in with SSO" admin login fails with `DNS_PROBE_FINISHED_NXDOMAIN`, even though every other part of the system (agent token requests, backend-to-backend calls) works fine.
+
+    **Fix for local/demo use**: add `127.0.0.1 keycloak` to the machine's hosts file (`C:\Windows\System32\drivers\etc\hosts` on Windows, `/etc/hosts` on Linux/macOS — requires admin/root), then `ipconfig /flushdns` (Windows) if needed. `AGENTGATE_UI_OIDC_AUTHORITY` and `AGENTGATE_UI_OIDC_ISSUER` (see below) should then both be set to `https://keycloak:8443/realms/agentgate`, matching `KC_HOSTNAME`.
+
+    **This is not needed in a real deployment**: once Keycloak has an actual public DNS name (e.g. `auth.yourcompany.com`), set `KC_HOSTNAME` to that name and point `AGENTGATE_UI_OIDC_AUTHORITY`/`AGENTGATE_UI_OIDC_ISSUER` at it too — there is only one hostname, resolvable by browsers and backend services alike, and the hosts-file workaround and the AUTHORITY/ISSUER split both become moot (though keeping the split costs nothing and supports more advanced topologies, e.g. the admin UI and backend sitting behind different ingress paths).

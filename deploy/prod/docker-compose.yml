@@ -212,7 +212,17 @@ services:
     restart: unless-stopped
     environment:
       AGENTGATE_UI_API_URL: "${AGENTGATE_UI_API_URL:-}"
-      AGENTGATE_UI_OIDC_AUTHORITY: "${AGENTGATE_UI_OIDC_AUTHORITY:-https://localhost:8443/realms/agentgate}"
+      # Both of these currently resolve to the same hostname ("keycloak" is
+      # the Docker service name; it only resolves from the browser because of
+      # a local hosts-file entry added for this demo machine, see Known
+      # Limitations in the runbook). They are two separate settings because
+      # they don't have to match: AUTHORITY is the host the BROWSER navigates
+      # to for login; ISSUER is the `iss` string Keycloak actually stamps into
+      # tokens (fixed by its --hostname below). A real deployment with its own
+      # public DNS name for Keycloak would set both to that same public name,
+      # and this split would stop mattering. See frontend/app/src/auth/oidc.ts.
+      AGENTGATE_UI_OIDC_AUTHORITY: "${AGENTGATE_UI_OIDC_AUTHORITY:-https://keycloak:8443/realms/agentgate}"
+      AGENTGATE_UI_OIDC_ISSUER: "${AGENTGATE_UI_OIDC_ISSUER:-https://keycloak:8443/realms/agentgate}"
       AGENTGATE_UI_OIDC_CLIENT_ID: "${AGENTGATE_UI_OIDC_CLIENT_ID:-agentgate-admin-ui}"
     volumes:
       - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
