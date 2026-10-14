@@ -1,0 +1,7 @@
+# Shell scripts must keep LF line endings even when checked out on Windows,
+# or Docker containers that run them as an ENTRYPOINT/CMD via shebang fail
+# with "exec ...: no such file or directory" (the shebang line becomes
+# "#!/bin/sh\r", which the kernel treats as a literal, non-existent path).
+# Confirmed breaking deploy/docker/docker-entrypoint.sh (prod-admin-ui
+# crash-loop) and deploy/prod/postgres/init-prod-db.sh on 2026-10-14.
+*.sh text eol=lf

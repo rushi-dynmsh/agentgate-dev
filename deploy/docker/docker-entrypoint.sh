@@ -16,7 +16,7 @@ export CSP_HEADER="default-src 'self'; connect-src $CONNECT_SRC; script-src 'sel
 envsubst '$CSP_HEADER' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf
 
 # Render runtime config.js
-envsubst '${AGENTGATE_UI_API_URL} ${AGENTGATE_UI_OIDC_AUTHORITY} ${AGENTGATE_UI_OIDC_CLIENT_ID}' \
+envsubst '${AGENTGATE_UI_API_URL} ${AGENTGATE_UI_OIDC_AUTHORITY} ${AGENTGATE_UI_OIDC_ISSUER} ${AGENTGATE_UI_OIDC_CLIENT_ID}' \
     < /usr/share/nginx/html/config.js.template \
     > /usr/share/nginx/html/config.js
 
