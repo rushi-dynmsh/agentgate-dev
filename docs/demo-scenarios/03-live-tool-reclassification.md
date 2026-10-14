@@ -64,23 +64,24 @@ curl.exe -k -s -i -X POST https://localhost:3443/ `
 ## 4. What to Look For (Expected Result)
 
 ### In the Terminal:
-Instead of any prior status, you now immediately receive:
+Instead of `200 OK`, you now immediately receive (same verified response shape as Scenario 2):
 ```http
-HTTP/2 403
-content-type: application/json
+HTTP/1.1 403 Forbidden
+x-agentgate-decision: deny
+x-agentgate-reason: policy_deny
 
-{"error":"access_denied","reason":"policy_denied","message":"tool classified as destructive; principal lacks required destructive permissions"}
+AgentGate Authorization Denied: policy_deny (an explicit policy denied this request)
 ```
 
 ### In the Admin Console UI:
 1. Navigate to **Audit** (`https://localhost:8444/audit`).
 2. The latest event shows:
    - **Decision:** **`DENY`**.
-   - **Tool:** `close_ticket`.
+   - **Tool:** `mcp-probe/update_ticket_status`.
    - **Evaluated Risk Level:** **`destructive`**.
 3. **Point out to audience:** We did not restart the gateway, we did not redeploy the backend MCP container, and we did not touch any code. The control plane immediately enforced the new risk boundary.
 
 ---
 
 ## 5. Clean-Up for Next Scenarios
-You can either leave it as destructive, or click **Edit** on `close_ticket` in `https://localhost:8444/tools` and restore it back to `write` or run `.\deploy\prod\scripts\demo-mode.ps1 -Reset` later.
+You can either leave it as destructive, or click **Edit** on `update_ticket_status` in `https://localhost:8444/tools` and restore its risk level back to `write`, or run `.\deploy\prod\scripts\demo-mode.ps1 -Reset` later (this also restores every other tool's bootstrap classification and reactivates policy `v1.0.0`).
