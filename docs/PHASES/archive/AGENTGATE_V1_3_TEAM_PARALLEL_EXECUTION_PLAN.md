@@ -1,5 +1,11 @@
 # AgentGate v1 — 3-Team Parallel Execution Plan
 
+> **Superseded 2026-10-14.** This plan's critical path (G1–G7) closed, and the project continued
+> through G8–G11 and the v1 production-readiness/hardening work under a different,
+> skill-driven planning approach (`docs/superpowers/plans/`, gitignored working documents, not
+> this checkpoint-folder process). Moved here after being found still marked "active" in
+> `docs/README.md` with no banner, long after the project had moved past it. Kept for history.
+
 **Purpose:** Replace the 5-workstream, tightly-gated execution model with 3 strictly independent
 teams now that the critical-path enforcement work (G1–G6) is closed, and bring an
 out-of-band-developed Admin UI into the same governance the rest of the codebase follows.

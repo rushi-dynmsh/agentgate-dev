@@ -1,5 +1,9 @@
 # AgentGate — Progress Tracker & Roadmap
 
+> **Superseded 2026-10-14.** Only covers through G7; G8–G11, v1.0.0-rc1 production-readiness, the
+> hardening pass, and the website/demo pack all happened after this file stopped being updated.
+> For current status see `docs/DEVELOPMENT/CURRENT_STATUS.md`. Kept for history.
+
 **What this file is:** the single place to answer "what's done, what's in flight, what's next, and
 who's blocked on whom." One checkpoint per section, each broken down by team, each task marked
 **IND** (can be done independently) or **DEP** (needs another team first, named explicitly).

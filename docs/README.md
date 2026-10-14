@@ -5,7 +5,13 @@ doesn't duplicate content — it says what exists, where, and why, so nothing ha
 rediscovered by scrolling through chat history.
 
 **Right now:** `docs/DEVELOPMENT/CURRENT_STATUS.md` — one page, always current. If you only read
-one thing, read that.
+one thing, read that. (As of 2026-10-14: the G1–G7 checkpoint-folder process below closed after
+G7; G8 through G11 and everything since — v1.0.0-rc1 production readiness, the hardening pass, the
+website/demo pack — happened under a different, skill-driven planning approach,
+`docs/superpowers/plans/` + `.superpowers/` working ledgers, gitignored and not part of this
+folder structure. This map's file index below reflects the G1–G7 era; treat anything it doesn't
+mention — `docs/OPERATIONS/RUNBOOK.md`'s current content, `docs/DEMO_SCRIPT.md`,
+`docs/demo-scenarios/`, `docs/handover/` — as real and current regardless.)
 
 **How we work:** `/WORKFLOW.md` (repository root) — roles, the ChatGPT↔Claude↔you loop, the
 per-checkpoint codebase-documentation requirement, and the folder conventions this map describes.
@@ -118,12 +124,6 @@ docs/
 │   │                                             blocked on whom" — every checkpoint G1→G11
 │   │                                             broken down by team, with dependencies marked
 │   │                                             IND/DEP. Start here for scheduling questions
-│   ├── AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md
-│   │                                             [ACTIVE STRATEGY] 3 independent teams (Backend,
-│   │                                             AI/Gateway, Frontend) — the operating model
-│   │                                             (roles, ownership, non-negotiables), in force
-│   │                                             since 2026-09-18. The tracker above holds the
-│   │                                             schedule; this holds the rules
 │   ├── AGENTGATE_V1_10_DAY_PARALLEL_TEAM_EXECUTION_PLAN.md
 │   │                                             [superseded, kept] 5-workstream gated model that
 │   │                                             carried G1–G6 to closure; superseded once its
@@ -154,14 +154,22 @@ docs/
 │   │                                             overstated (see G7 Task 0 below) — the fix is
 │   │                                             corrective closeout, not a reopened verdict.
 │   │
-│   ├── G7_WORKSTREAMS/                          [ACTIVE CHECKPOINT — first under the 3-team model,
-│   │   │                                         opened 2026-09-18] Downstream credential exchange
+│   ├── G7_WORKSTREAMS/                          [CLOSED CHECKPOINT — first under the 3-team model,
+│   │   │                                         opened 2026-09-18, closed 2026-10-08 per
+│   │   │                                         CURRENT_STATUS.md] Downstream credential exchange
 │   │   │                                         (O-001), G6 evidence closeout, and groundwork for
 │   │   │                                         a realistic (non-toy) demonstration system.
+│   │   │                                         NOTE: unlike every other closed checkpoint, this
+│   │   │                                         folder has no CLOSURE_SUMMARY.md or
+│   │   │                                         00_G7_CHECKPOINT_REFERENCE.md — a real gap,
+│   │   │                                         flagged 2026-10-14, not yet resolved.
 │   │   ├── 01_BACKEND_G7.md                     Backend team's ticket — self-contained
 │   │   ├── 02_AI_GATEWAY_G7.md                  AI/Gateway team's ticket — self-contained
 │   │   ├── 03_FRONTEND_G7.md                    Frontend team's ticket — self-contained
 │   │   └── results/                             GITIGNORED — ephemeral reports + digests
+│   │
+│   ├── (G8–G11 ran without this checkpoint-folder process — no docs/PHASES/G{8,9,10,11}_WORKSTREAMS/
+│   │   exist. Their outcomes are summarized in CURRENT_STATUS.md's Checkpoint Milestones only.)
 │   │
 │   └── archive/                                 [historical — see docs/README.md kind 6]
 │       ├── MASTER_PLAN.md                       original Phase 0-7 plan; superseded after Phase 0
@@ -169,9 +177,16 @@ docs/
 │       ├── PHASE-01-TASKS.md                    its task register; superseded
 │       ├── TASK-01-01-GO-MODULE-AND-REPOSITORY-SCAFFOLD.md
 │       │                                         completed task spec, kept for history
-│       └── REPOSITORY_BASELINE.md               one-time repo recon snapshot (2026-08-22,
-│                                                 before any code existed) — permanently
-│                                                 historical, never "current" again
+│       ├── REPOSITORY_BASELINE.md               one-time repo recon snapshot (2026-08-22,
+│       │                                         before any code existed) — permanently
+│       │                                         historical, never "current" again
+│       ├── AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md
+│       │                                         3-team operating model that carried G7 to close;
+│       │                                         archived 2026-10-14 after being found still
+│       │                                         marked "active" here with no superseded banner,
+│       │                                         long after G8-G11 had superseded it in practice
+│       └── PROGRESS_AND_ROADMAP.md              checkpoint tracker; archived 2026-10-14, stopped
+│                                                 being updated after G7
 │
 └── prompts/                                     GITIGNORED — raw prompt text fed to Claude,
     ├── phase0/                                  working material, not project history
@@ -190,15 +205,17 @@ docs/
 
 - **"What are we building and why?"** → `docs/PROJECT_DEFINITION.md`
 - **"What's the state of things today?"** → `docs/DEVELOPMENT/CURRENT_STATUS.md`
-- **"What plan are we actually following?"** → the strategy doc with no superseded banner —
-  currently `docs/PHASES/AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md`
-- **"What happened at G1 / G2 / ...?"** → that checkpoint's `CLOSURE_SUMMARY.md` (once written),
-  or the full detail in its `docs/PHASES/G{N}_WORKSTREAMS/` folder
-- **"What should my team actually be working on right now?"** → your team's ticket in
-  `docs/PHASES/G7_WORKSTREAMS/` (`01_BACKEND_G7.md`, `02_AI_GATEWAY_G7.md`, or
-  `03_FRONTEND_G7.md`) — each is self-contained and states its own collaboration points/blockers
+- **"What plan are we actually following?"** → `docs/DEVELOPMENT/CURRENT_STATUS.md` names the
+  active plan directly (as of 2026-10-14: work under `docs/superpowers/plans/`, gitignored). The
+  G1–G7-era strategy docs below are all now historical — `AGENTGATE_V1_3_TEAM_PARALLEL_EXECUTION_PLAN.md`
+  moved to `archive/` 2026-10-14 after being found stale with no banner.
+- **"What happened at G1 / G2 / ... / G7?"** → that checkpoint's `CLOSURE_SUMMARY.md` (G7 is
+  missing one — see the note by its entry above), or the full detail in its
+  `docs/PHASES/G{N}_WORKSTREAMS/` folder. For G8-G11, see CURRENT_STATUS.md's Checkpoint
+  Milestones — no per-checkpoint folder exists for those.
 - **"What's done, what's next, and who's blocked on whom?"** →
-  `docs/PHASES/PROGRESS_AND_ROADMAP.md` — the checkpoint tracker, G1 through G11, by team
+  `docs/DEVELOPMENT/CURRENT_STATUS.md` for the current answer. `docs/PHASES/archive/PROGRESS_AND_ROADMAP.md`
+  is the old tracker (G1-G7 only, archived 2026-10-14).
 - **"What's the frozen authorization contract?"** → `docs/PHASES/G1_WORKSTREAMS/GO_BACKEND_G1_CONTRACT.md`
 - **"Is there an open question blocking this?"** → `docs/DECISIONS/OPEN_DECISIONS.md`
 - **"What security invariant governs this?"** → `docs/SECURITY/PRODUCTION-INVARIANTS.md`
