@@ -20,6 +20,7 @@ Before starting the presentation:
       cd website
       npm run serve -- --port 3000
       ```
+- [ ] **One-time per machine, do this before the first login attempt ever:** add a hosts-file entry so your browser can resolve Keycloak's internal name, or "Sign in with SSO" below fails with `DNS_PROBE_FINISHED_NXDOMAIN`. Open Notepad **as Administrator**, open `C:\Windows\System32\drivers\etc\hosts`, add `127.0.0.1 keycloak` at the end, save, then run `ipconfig /flushdns`. Full explanation: `docs/OPERATIONS/RUNBOOK.md` Known Limitation #10. Not needed again after the first time on a given machine.
 - [ ] Open three browser tabs:
   1. **Landing Page & Documentation:** `http://localhost:3000`
   2. **Admin Console:** `https://localhost:8444` — your browser will warn about the certificate; click "Advanced" → "Proceed". Click **Sign in with SSO**, username `admin`, password from:
@@ -27,6 +28,7 @@ Before starting the presentation:
      Get-Content deploy\prod\secrets\admin_initial_password
      ```
   3. A spare blank tab for anything you need mid-demo.
+  - **If login fails with "HTTP ERROR 431":** stale cookies piled up on `localhost`/`keycloak` from earlier attempts. Clear site data for both (DevTools → Application → Storage → "Clear site data") or switch to a fresh Incognito window, and retry.
 - [ ] Confirm the landing page's media loads: open `http://localhost:3000/media/manifest.json` directly — it should show JSON, not an error.
 - [ ] Have the fallback video ready in case anything misbehaves live: `website/static/media/walkthrough.webm` (open it once beforehand so it's not the first time it plays).
 - [ ] **Do a full dry run of this entire script, once, before the real thing.** That's the only way to catch anything specific to your machine.
