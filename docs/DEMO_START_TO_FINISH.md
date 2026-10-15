@@ -79,7 +79,7 @@ You make every call yourself from MCP Inspector, and each one is logged. The bac
 2. Open the admin console (`https://localhost:8444`), log in, and keep two tabs ready: **Audit log** (`/audit`) and **Tools & resources** (`/tools`). The Audit page is nearly empty, which is what you want.
 3. Start Inspector as the **reader** agent. The token lasts 5 minutes, so run this right before you start and re-run it whenever Inspector shows a 401:
    ```powershell
-   $agentSecret = (Get-Content deployprodsecretsagent_reader_secret).Trim()
+   $agentSecret = (Get-Content deploy\prod\secrets\agent_reader_secret).Trim()
    $tokenResp = curl.exe -k -s -X POST https://localhost:8443/realms/agentgate/protocol/openid-connect/token -H "Content-Type: application/x-www-form-urlencoded" -d "grant_type=client_credentials&client_id=agent-reader&client_secret=$agentSecret"
    $agentToken = ($tokenResp | ConvertFrom-Json).access_token
    Write-Host "token length: $($agentToken.Length) (must be about 1100, not 0)"
@@ -136,10 +136,10 @@ Open the **Dashboard**: the decision counters and the per-hour chart fill up, an
 
 - **Back to a clean state** (restores tickets, tool risk levels and the active policy; it also restarts the traffic client, so run `docker stop prod-demo-agent` again before a manual demo):
   ```powershell
-  .deployprodscriptsdemo-mode.ps1 -Reset
+  .\deploy\prod\scripts\demo-mode.ps1 -Reset
   ```
-- **Stop everything, keep data:** `.deployprodscriptsdemo-mode.ps1 -Down`
-- **Stop and wipe all data:** `.deployprodscriptsdemo-mode.ps1 -Down -Volumes` (the next start takes the slow path again).
+- **Stop everything, keep data:** `.\deploy\prod\scripts\demo-mode.ps1 -Down`
+- **Stop and wipe all data:** `.\deploy\prod\scripts\demo-mode.ps1 -Down -Volumes` (the next start takes the slow path again).
 - Close the documentation-site window (`Ctrl+C`).
 
 ## If something goes wrong
