@@ -2,6 +2,7 @@ package authz
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -97,8 +98,10 @@ func (s *Server) Check(ctx context.Context, req *authv3.CheckRequest) (resp *aut
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
+	rpcID := rpcIDFromCheck(req)
+
 	if s.adapter == nil {
-		return s.buildDeniedResponse(decision.ReasonEvaluationError, "adapter not configured", ""), nil
+		return s.buildDeniedResponse(decision.ReasonEvaluationError, "adapter not configured", "", rpcID), nil
 	}
 
 	decisionReq, aerr := s.adapter.Adapt(ctx, req)
@@ -158,11 +161,11 @@ func (s *Server) Check(ctx context.Context, req *authv3.CheckRequest) (resp *aut
 			_, _ = s.decisionSvc.Evaluate(ctx, fallbackReq)
 		}
 
-		return s.buildDeniedResponse(aerr.ReasonCode, aerr.Message, execID), nil
+		return s.buildDeniedResponse(aerr.ReasonCode, aerr.Message, execID, rpcID), nil
 	}
 
 	if s.decisionSvc == nil {
-		return s.buildDeniedResponse(decision.ReasonEvaluationError, "decision service not configured", decisionReq.ExecutionID), nil
+		return s.buildDeniedResponse(decision.ReasonEvaluationError, "decision service not configured", decisionReq.ExecutionID, rpcID), nil
 	}
 
 	type evalResult struct {
@@ -195,24 +198,24 @@ func (s *Server) Check(ctx context.Context, req *authv3.CheckRequest) (resp *aut
 	case out := <-evalCh:
 		res, cred, err = out.res, out.cred, out.err
 	case <-ctx.Done():
-		return s.buildDeniedResponse(decision.ReasonEvaluationError, ctx.Err().Error(), decisionReq.ExecutionID), nil
+		return s.buildDeniedResponse(decision.ReasonEvaluationError, ctx.Err().Error(), decisionReq.ExecutionID, rpcID), nil
 	}
 
 	if err != nil {
-		return s.buildDeniedResponse(decision.ReasonEvaluationError, err.Error(), decisionReq.ExecutionID), nil
+		return s.buildDeniedResponse(decision.ReasonEvaluationError, err.Error(), decisionReq.ExecutionID, rpcID), nil
 	}
 
 	if res.Decision == decision.Allow {
 		if cred != nil && cred.HeaderName == "" {
-			return s.buildDeniedResponse(decision.ReasonCredentialIssuanceFailure, "downstream credential malformed", res.ExecutionID), nil
+			return s.buildDeniedResponse(decision.ReasonCredentialIssuanceFailure, "downstream credential malformed", res.ExecutionID, rpcID), nil
 		}
 		if cred == nil && s.requireCredential {
-			return s.buildDeniedResponse(decision.ReasonCredentialIssuanceFailure, "downstream credential unavailable", res.ExecutionID), nil
+			return s.buildDeniedResponse(decision.ReasonCredentialIssuanceFailure, "downstream credential unavailable", res.ExecutionID, rpcID), nil
 		}
 		return s.buildOkResponse(res, cred), nil
 	}
 
-	return s.buildDeniedResponse(res.Reason, res.Message, res.ExecutionID), nil
+	return s.buildDeniedResponse(res.Reason, res.Message, res.ExecutionID, rpcID), nil
 }
 
 func (s *Server) buildOkResponse(res decision.Result, cred *credential.Credential) *authv3.CheckResponse {
@@ -271,7 +274,7 @@ func (s *Server) buildOkResponse(res decision.Result, cred *credential.Credentia
 	}
 }
 
-func (s *Server) buildDeniedResponse(reason decision.ReasonCode, msg, execID string) *authv3.CheckResponse {
+func (s *Server) buildDeniedResponse(reason decision.ReasonCode, msg, execID string, rpcID json.RawMessage) *authv3.CheckResponse {
 	if s.credentialIssuanceFailures != nil && reason == decision.ReasonCredentialIssuanceFailure {
 		s.credentialIssuanceFailures.Inc()
 	}
@@ -289,6 +292,12 @@ func (s *Server) buildDeniedResponse(reason decision.ReasonCode, msg, execID str
 				Value: string(reason),
 			},
 		},
+		{
+			Header: &corev3.HeaderValue{
+				Key:   "content-type",
+				Value: "application/json",
+			},
+		},
 	}
 
 	if execID != "" {
@@ -300,15 +309,12 @@ func (s *Server) buildDeniedResponse(reason decision.ReasonCode, msg, execID str
 		})
 	}
 
-	body := fmt.Sprintf("AgentGate Authorization Denied: %s", reason)
-	if msg != "" {
-		body = fmt.Sprintf("AgentGate Authorization Denied: %s (%s)", reason, msg)
-	}
+	body := deniedJSONRPCBody(rpcID, reason, msg, execID)
 
 	return &authv3.CheckResponse{
 		Status: &status.Status{
 			Code:    int32(codes.PermissionDenied),
-			Message: body,
+			Message: fmt.Sprintf("AgentGate Authorization Denied: %s", reason),
 		},
 		HttpResponse: &authv3.CheckResponse_DeniedResponse{
 			DeniedResponse: &authv3.DeniedHttpResponse{
