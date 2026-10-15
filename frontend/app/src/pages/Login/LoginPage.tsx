@@ -23,16 +23,17 @@ export function LoginPage() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "var(--ag-bg-canvas)",
+        background: "radial-gradient(700px 360px at 50% -40px, var(--ag-accent-soft), transparent 70%), var(--ag-bg-canvas)",
       }}
     >
       <div
         style={{
-          width: 360,
+          width: 380,
           background: "var(--ag-bg-surface)",
           border: "1px solid var(--ag-border)",
-          borderRadius: 10,
-          padding: "32px 28px",
+          borderRadius: 14,
+          padding: "36px 32px",
+          boxShadow: "0 12px 40px rgba(67, 56, 202, 0.10)",
         }}
       >
         {/* Brand mark + wordmark */}
@@ -47,11 +48,11 @@ export function LoginPage() {
           <img
             src="/favicon.svg"
             alt="AgentGate"
-            width={32}
-            height={32}
+            width={36}
+            height={36}
             style={{ display: "block", flexShrink: 0 }}
           />
-          <span style={{ fontWeight: 600, fontSize: 16, color: "var(--ag-text-primary)" }}>
+          <span style={{ fontWeight: 600, fontSize: 20, letterSpacing: "-0.01em", color: "var(--ag-text-primary)" }}>
             AgentGate
           </span>
         </div>

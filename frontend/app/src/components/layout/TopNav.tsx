@@ -26,10 +26,10 @@ export function TopNav() {
   return (
     <header className="ag-topbar">
       <div className="ag-brand">
-        <ShieldCheck size={20} strokeWidth={2} />
+        <img src="/favicon.svg" alt="" width={26} height={26} className="ag-brand-mark" />
         <div className="ag-brand-text">
           <span className="ag-brand-title">AgentGate</span>
-          <span className="ag-brand-tagline">Secure AI actions</span>
+          <span className="ag-brand-tagline">Agent authorization</span>
         </div>
       </div>
 
@@ -50,7 +50,8 @@ export function TopNav() {
         <select
           value={preference}
           onChange={(e) => setPreference(e.target.value as any)}
-          style={{ marginRight: 8, padding: '2px 4px', borderRadius: 'var(--ag-radius-control)', border: '1px solid var(--ag-border)', background: 'var(--ag-bg-surface)', color: 'var(--ag-text-primary)' }}
+          aria-label="Theme"
+          className="ag-theme-select"
         >
           <option value="system">System</option>
           <option value="light">Light</option>
@@ -61,8 +62,8 @@ export function TopNav() {
         <button
           onClick={() => void logout()}
           title="Sign out"
-          className="ag-avatar"
-          style={{ border: "none", cursor: "pointer", fontFamily: "inherit" }}
+          aria-label="Sign out"
+          className="ag-avatar ag-avatar-btn"
         >
           SA
         </button>
