@@ -36,17 +36,28 @@ What each part does:
 Inspector opens in your browser. The server card is read-only because it was launched from the command line; that's expected.
 
 ### Step 2: See the tools
-1. The server card shows **Connected**.
-2. Open the **Tools** tab and list tools. You should see `list_tickets`, `update_ticket_status` and `delete_ticket`.
+1. The header shows a green **Connected** and the server name `support-desk-mcp`.
+2. Click **Tools** at the top. The list on the left reads **Tools (3)**: `list_tickets`, `update_ticket_status`, `delete_ticket`. Click a tool to open its form in the middle.
+3. The **Messages** panel on the right (marked MODERN) logs every request and response. Keep it visible: it shows exactly what was sent and what came back.
+
+**How to run any tool:** click it in the left list, fill in the fields in the middle panel, click **Execute Tool**. Fields marked with a red `*` are required, and **Execute Tool** stays greyed out until they are filled. (The **Edit as JSON** switch lets you type the arguments as JSON instead of filling the boxes.)
+
+| Tool | Fields to enter | Safe values for the demo |
+|---|---|---|
+| `list_tickets` | `status_filter` (optional) | Leave empty for all tickets, or type `open`, `in_progress` or `resolved` to filter |
+| `update_ticket_status` | `ticket_id` *, `new_status` * | `TCK-1002` and `resolved` |
+| `delete_ticket` | `ticket_id` * | `TCK-1001` |
+
+The three demo tickets are `TCK-1001` (open), `TCK-1002` (in progress) and `TCK-1003` (open).
 
 ### Step 3: Run an allowed tool
-1. Pick `list_tickets` and run it with no arguments.
-2. You get the three demo tickets back.
+1. Click `list_tickets`, leave `status_filter` empty, and click **Execute Tool**.
+2. The **Response** box on the right shows the three demo tickets (`"text": "Found 3 ticket(s)"`, then a `tickets` list).
 3. In the admin console Audit page, the top row shows **`ALLOW`**, tool `mcp-probe/list_tickets`, principal `agent-reader`. Expand it: risk level `read`, policy version `v1.0.0`, and an **Audit Chain** hash that links this record to the one before it.
 
 ### Step 4: Run a forbidden tool
-1. Pick `delete_ticket` and run it with `{"ticket_id": "TCK-1001"}`. This agent only has read access.
-2. You get a JSON-RPC error instead of a result:
+1. Click `delete_ticket`, type `TCK-1001` into the `ticket_id` box, and click **Execute Tool**. This agent only has read access.
+2. You get a JSON-RPC error instead of a result (shown in the Response box and as a red error in Inspector):
    ```json
    {"jsonrpc":"2.0","id":2,"error":{"code":-40301,"data":{"execution_id":"exec-…","reason":"policy_deny"},"message":"AgentGate Authorization Denied: policy_deny (an explicit policy denied this request)"}}
    ```
@@ -66,7 +77,7 @@ Expected: `403 Forbidden` with a JSON-RPC error whose `reason` is `unknown_tool`
 In the Audit page (filter `DENY`) the row shows tool `dump_customer_database`, reason `unknown_tool`, and the request's arguments (`{"format":"csv"}`) are recorded, so a security analyst can see exactly what was attempted.
 
 ### Optional: the admin agent
-Repeat Step 1 with `agent_admin_secret` and `client_id=agent-admin`. `update_ticket_status` with `{"ticket_id":"TCK-1002","new_status":"resolved"}` is now allowed, and `delete_ticket` is still denied (nobody may use destructive tools).
+Repeat Step 1 with `agent_admin_secret` and `client_id=agent-admin`. `update_ticket_status` with `ticket_id` = `TCK-1002` and `new_status` = `resolved` is now allowed, and `delete_ticket` is still denied (nobody may use destructive tools).
 
 ### Step 6 (fallback): the same thing without Inspector
 If Node or internet is a problem, nothing above needs Inspector. After the token lines from Step 1:

@@ -77,7 +77,7 @@ Get-Content deploy\prod\secrets\admin_initial_password
    $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
    npx @modelcontextprotocol/inspector --server-url https://localhost:3443/mcp --transport http --protocol-era modern --header "Authorization: Bearer $agentToken"
    ```
-   In the browser tab that opens: confirm **Connected**, open **Tools** and list them (three tools), run `list_tickets` (works), then run `delete_ticket` with `{"ticket_id": "TCK-1001"}` (blocked with a JSON-RPC error). Then go to the admin console's Audit page and point at the matching ALLOW and DENY rows. Details and the command-line fallback: `docs/demo-scenarios/01-real-client-inspector.md`.
+   In the browser tab that opens: confirm the green **Connected**, click **Tools** (three tools listed on the left). Click `list_tickets`, leave the optional `status_filter` empty, click **Execute Tool** (works: three tickets). Then click `delete_ticket`, type `TCK-1001` in `ticket_id`, click **Execute Tool** (blocked with a JSON-RPC error). Required fields are marked `*`, and the button stays grey until they are filled. Then go to the admin console's Audit page and point at the matching ALLOW and DENY rows. Details and the command-line fallback: `docs/demo-scenarios/01-real-client-inspector.md`.
 3. **Change a rule live:** `docs/DEMO_SCRIPT.md` Step 4 (reclassify a tool) and Step 5 (policy dry-run and rollback).
 4. **Prove the log can't be tampered with:** `docker exec prod-agentgate /bin/agentgate verify-audit -workspace default` prints `OK <N> records`.
 
