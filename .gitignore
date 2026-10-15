@@ -35,3 +35,6 @@ Thumbs.db
 # Local Codex/Git worktrees
 .worktrees/
 .superpowers/
+
+# Scratch directory written by website/scripts verify-quickstart tests
+.ag-verify-tmp/

@@ -59,21 +59,21 @@ const config: Config = {
       title: 'AgentGate',
       logo: {
         alt: 'AgentGate Logo',
-        src: 'img/logo.svg',
-        srcDark: 'img/logo-dark.svg',
+        src: 'img/mark.svg',
+        srcDark: 'img/mark-dark.svg',
       },
       items: [
         {
           type: 'docSidebar',
           sidebarId: 'tutorialSidebar',
           position: 'left',
-          label: 'Docs',
+          label: 'Integration Guide',
         },
         {
           type: 'docSidebar',
           sidebarId: 'developerSidebar',
           position: 'left',
-          label: 'Architecture & Contributor Guide',
+          label: 'Contributor Guide',
         },
         {
           href: 'https://github.com/rushi-dynmsh/agentgate-dev',
@@ -85,7 +85,7 @@ const config: Config = {
     footer: {
       style: 'dark',
       links: [],
-      copyright: `v1.0.0-rc · licence: to be decided · <a href="/docs/security-and-limitations">Known limitations</a>`,
+      copyright: `AgentGate v1.0.0-rc · Licence to be decided · <a href="/docs/security-and-limitations">Known limitations</a> · <a href="/docs/quickstart">Quickstart</a>`,
     },
     prism: {
       theme: prismThemes.github,

@@ -1,24 +1,30 @@
 import React from 'react';
-import styles from './Trust.module.css';
+import { IconLock, IconLink, IconClock } from './icons';
 
 export default function Trust() {
   return (
-    <section id="trust" className={styles.section}>
-      <div className="container">
-        <h2>Designed for Zero Trust</h2>
-        <div className="ag-trust-badge"></div>
-        <div className={styles.grid}>
-          <div className={styles.card}>
-            <h3>Fails Closed</h3>
-            <p>If anything goes wrong—a network timeout, a malformed request, or an engine error—AgentGate denies the action. <a href="/docs/security-and-limitations">Read the security model</a>.</p>
+    <section id="trust" className="lp-section">
+      <div className="lp-wrap">
+        <div className="lp-head">
+          <span className="lp-eyebrow ag-trust-badge">Zero trust</span>
+          <h2 className="lp-title">Designed to fail safe</h2>
+          <p className="lp-lead">Three guarantees that hold even when something else in the system breaks.</p>
+        </div>
+        <div className="lp-grid">
+          <div className="lp-card">
+            <div className="lp-icon"><IconLock /></div>
+            <h3>Fails closed</h3>
+            <p>A network timeout, malformed request or engine error all end the same way: the action is denied. <a href="/docs/security-and-limitations">Read the security model</a>.</p>
           </div>
-          <div className={styles.card}>
-            <h3>Tamper-Evident Audit</h3>
-            <p>Every allowed action is written to a verifiable hash chain before it ever executes. <a href="/docs/audit">Learn about the audit trail</a>.</p>
+          <div className="lp-card">
+            <div className="lp-icon"><IconLink /></div>
+            <h3>Tamper-evident audit</h3>
+            <p>Every decision is written to a verifiable hash chain before the action runs. <a href="/docs/audit">Learn about the audit trail</a>.</p>
           </div>
-          <div className={styles.card}>
-            <h3>No Shared Credentials</h3>
-            <p>Agents authenticate with short-lived tokens. They never see your backend database passwords or API keys. <a href="/docs/credentials">See how credentials work</a>.</p>
+          <div className="lp-card">
+            <div className="lp-icon"><IconClock /></div>
+            <h3>No shared credentials</h3>
+            <p>Agents present short-lived tokens and never see backend passwords or API keys. <a href="/docs/credentials">See how credentials work</a>.</p>
           </div>
         </div>
       </div>

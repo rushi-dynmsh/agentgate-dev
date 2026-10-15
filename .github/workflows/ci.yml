@@ -298,6 +298,10 @@ jobs:
         run: node tools/check-brand-tokens.mjs --files brand/tokens.css frontend/app/src/styles/tokens.css website/src/css/tokens.css
       - name: SVG hygiene check
         run: node tools/check-svg.mjs brand
+      - name: Brand mark consistency check
+        run: node tools/check-brand-marks.mjs
+      - name: Brand mark consistency check
+        run: node tools/check-brand-marks.mjs
 
   docs-quickstart:
     name: Docs Quickstart Verifier
