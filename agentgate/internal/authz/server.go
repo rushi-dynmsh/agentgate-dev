@@ -104,6 +104,13 @@ func (s *Server) Check(ctx context.Context, req *authv3.CheckRequest) (resp *aut
 		return s.buildDeniedResponse(decision.ReasonEvaluationError, "adapter not configured", "", rpcID), nil
 	}
 
+	// Pure discovery methods (server/discover, tools/list) need no tool decision.
+	// Everything else, including every unknown method, continues to the normal
+	// path below, which only authorizes tools/call.
+	if _, ok := discoveryMethodOf(bodyOfCheck(req)); ok {
+		return s.buildDiscoveryAllowResponse(), nil
+	}
+
 	decisionReq, aerr := s.adapter.Adapt(ctx, req)
 	if aerr != nil {
 		// Adaptation failed (e.g. malformed body, invalid identity, unknown tool).

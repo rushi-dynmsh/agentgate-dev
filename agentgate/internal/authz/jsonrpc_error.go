@@ -18,14 +18,7 @@ const DeniedJSONRPCErrorCode = -40301
 // carried in the ext_authz check. It returns nil when there is no readable id, so
 // the error response omits "id" as MCP 2026-07-28 allows for unreadable requests.
 func rpcIDFromCheck(req *authv3.CheckRequest) json.RawMessage {
-	if req == nil || req.Attributes == nil || req.Attributes.Request == nil || req.Attributes.Request.Http == nil {
-		return nil
-	}
-	h := req.Attributes.Request.Http
-	body := h.RawBody
-	if len(body) == 0 {
-		body = []byte(h.Body)
-	}
+	body := bodyOfCheck(req)
 	var env struct {
 		ID json.RawMessage `json:"id"`
 	}
