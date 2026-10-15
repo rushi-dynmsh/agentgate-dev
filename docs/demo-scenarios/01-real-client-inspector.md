@@ -22,6 +22,7 @@ An agent is a machine, so it logs in with its own client ID and secret, not a br
 $agentSecret = (Get-Content deploy\prod\secrets\agent_reader_secret).Trim()
 $tokenResp = curl.exe -k -s -X POST https://localhost:8443/realms/agentgate/protocol/openid-connect/token -H "Content-Type: application/x-www-form-urlencoded" -d "grant_type=client_credentials&client_id=agent-reader&client_secret=$agentSecret"
 $agentToken = ($tokenResp | ConvertFrom-Json).access_token
+Write-Host "token length: $($agentToken.Length) (must be about 1100, not 0)"
 
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
 npx @modelcontextprotocol/inspector --server-url https://localhost:3443/mcp --transport http --protocol-era modern --header "Authorization: Bearer $agentToken"

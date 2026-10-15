@@ -74,6 +74,7 @@ Get-Content deploy\prod\secrets\admin_initial_password
    $agentSecret = (Get-Content deploy\prod\secrets\agent_reader_secret).Trim()
    $tokenResp = curl.exe -k -s -X POST https://localhost:8443/realms/agentgate/protocol/openid-connect/token -H "Content-Type: application/x-www-form-urlencoded" -d "grant_type=client_credentials&client_id=agent-reader&client_secret=$agentSecret"
    $agentToken = ($tokenResp | ConvertFrom-Json).access_token
+   Write-Host "token length: $($agentToken.Length) (must be about 1100, not 0)"
    $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
    npx @modelcontextprotocol/inspector --server-url https://localhost:3443/mcp --transport http --protocol-era modern --header "Authorization: Bearer $agentToken"
    ```
@@ -99,6 +100,7 @@ Get-Content deploy\prod\secrets\admin_initial_password
 | Admin console login: `DNS_PROBE_FINISHED_NXDOMAIN` | The hosts-file line is missing | Part 1, step 3 |
 | Admin console login: `HTTP ERROR 431` | Old cookies piled up | Clear site data for `localhost`, or use an Incognito window |
 | Inspector: `401` or "Connection failed" | The 5-minute token expired | Re-run the token lines and relaunch Inspector |
+| Inspector shows **Failed** with many 401s on `/register` and `.well-known` | The token was empty, so Inspector found no bearer token. Usually PowerShell is not in the repo root (the secret path is relative), or the stack is down | `cd` to the repo root, re-run the token lines, check `token length` prints about 1100, relaunch Inspector |
 | Inspector: "Version negotiation failed" or an `initialize` error | `--protocol-era modern` is missing | Add it; the server speaks the newer MCP style only |
 | Inspector prints a TLS warning, or `Assertion failed … async.c` on exit | Expected: self-signed certificate, and a Node-on-Windows exit message | Ignore both |
 | `delete_ticket` was actually allowed, or tickets are missing | An earlier rehearsal changed the data or rules | Run `demo-mode.ps1 -Reset` |
