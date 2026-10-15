@@ -260,8 +260,27 @@ func (s *Server) Handler() http.Handler {
 				},
 			})
 
+		case "server/discover":
+			// MCP 2026-07-28 requires every server to implement this; modern clients
+			// (for example MCP Inspector) use it to learn versions and capabilities.
+			writeJSON(w, jsonrpcResponse{
+				JSONRPC: "2.0",
+				ID:      req.ID,
+				Result: map[string]any{
+					"resultType":        "complete",
+					"ttlMs":             0,
+					"cacheScope":        "private",
+					"supportedVersions": []string{"2026-07-28"},
+					"capabilities":      map[string]any{"tools": map[string]any{}},
+					"_meta": map[string]any{
+						"io.modelcontextprotocol/serverInfo": map[string]any{"name": "support-desk-mcp", "version": "1.0.0"},
+					},
+					"instructions": "Demo support-desk tools: list_tickets (read), update_ticket_status (write), delete_ticket (destructive).",
+				},
+			})
+
 		case "tools/list":
-			writeJSON(w, jsonrpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{"tools": toolSchemas}})
+			writeJSON(w, jsonrpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{"resultType": "complete", "ttlMs": 0, "cacheScope": "private", "tools": toolSchemas}})
 
 		case "tools/call":
 			s.handleToolCall(r.Context(), w, req, bodyBytes, headers, r.Header.Get("Authorization"))
@@ -330,6 +349,7 @@ func (s *Server) handleToolCall(ctx context.Context, w http.ResponseWriter, req 
 		}
 		s.mu.Unlock()
 		writeJSON(w, jsonrpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{
+			"resultType": "complete",
 			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Found %d ticket(s)", len(out))}},
 			"tickets": out,
 		}})
@@ -348,6 +368,7 @@ func (s *Server) handleToolCall(ctx context.Context, w http.ResponseWriter, req 
 			return
 		}
 		writeJSON(w, jsonrpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{
+			"resultType": "complete",
 			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Ticket %s status updated to %s", ticketID, newStatus)}},
 		}})
 
@@ -364,6 +385,7 @@ func (s *Server) handleToolCall(ctx context.Context, w http.ResponseWriter, req 
 			return
 		}
 		writeJSON(w, jsonrpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{
+			"resultType": "complete",
 			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Ticket %s permanently deleted", ticketID)}},
 		}})
 

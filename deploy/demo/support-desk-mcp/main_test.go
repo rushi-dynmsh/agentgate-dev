@@ -110,6 +110,94 @@ func TestInitializeAndToolsList_NoCredentialRequired(t *testing.T) {
 	}
 }
 
+func TestServerDiscover_NoCredentialRequiredAndSpecShaped(t *testing.T) {
+	s, _ := newSecuredServer(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"jsonrpc":"2.0","id":"d1","method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}`))
+	s.Handler().ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("server/discover: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		ID     string `json:"id"`
+		Result struct {
+			ResultType        string         `json:"resultType"`
+			SupportedVersions []string       `json:"supportedVersions"`
+			Capabilities      map[string]any `json:"capabilities"`
+			Meta              map[string]any `json:"_meta"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("response is not JSON: %v\n%s", err, w.Body.String())
+	}
+	if resp.ID != "d1" || resp.Result.ResultType != "complete" {
+		t.Fatalf("id/resultType wrong: %+v", resp)
+	}
+	if len(resp.Result.SupportedVersions) != 1 || resp.Result.SupportedVersions[0] != "2026-07-28" {
+		t.Fatalf("supportedVersions = %v, want [2026-07-28]", resp.Result.SupportedVersions)
+	}
+	if _, ok := resp.Result.Capabilities["tools"]; !ok {
+		t.Fatalf("capabilities must advertise tools: %v", resp.Result.Capabilities)
+	}
+	if _, ok := resp.Result.Meta["io.modelcontextprotocol/serverInfo"]; !ok {
+		t.Fatalf("_meta must carry serverInfo: %v", resp.Result.Meta)
+	}
+}
+
+// 2026-07-28 requires every result to carry resultType; MCP Inspector rejects a
+// tools/call success without it.
+func TestToolsCallSuccess_CarriesResultType(t *testing.T) {
+	s := NewServer()
+	for _, c := range []struct{ tool, args string }{
+		{"list_tickets", `{}`},
+		{"update_ticket_status", `{"ticket_id":"TCK-1001","new_status":"resolved"}`},
+		{"delete_ticket", `{"ticket_id":"TCK-1003"}`},
+	} {
+		w := callTool(s.Handler(), "", c.tool, c.args)
+		var resp struct {
+			Result struct {
+				ResultType string `json:"resultType"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("%s: not JSON: %v", c.tool, err)
+		}
+		if resp.Result.ResultType != "complete" {
+			t.Fatalf("%s: resultType = %q, want complete: %s", c.tool, resp.Result.ResultType, w.Body.String())
+		}
+	}
+}
+
+// MCP 2026-07-28 list/discover results are cacheable operations; a strict client
+// (MCP Inspector's SDK) rejects a result without ttlMs and cacheScope.
+func TestListAndDiscoverResults_CarryCacheFields(t *testing.T) {
+	s, _ := newSecuredServer(t)
+	for _, method := range []string{"tools/list", "server/discover"} {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"jsonrpc":"2.0","id":1,"method":"`+method+`"}`))
+		s.Handler().ServeHTTP(w, r)
+		var resp struct {
+			Result struct {
+				ResultType string   `json:"resultType"`
+				TTLMs      *float64 `json:"ttlMs"`
+				CacheScope string   `json:"cacheScope"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("%s: not JSON: %v", method, err)
+		}
+		if resp.Result.ResultType != "complete" {
+			t.Fatalf("%s: resultType = %q, want complete", method, resp.Result.ResultType)
+		}
+		if resp.Result.TTLMs == nil {
+			t.Fatalf("%s: ttlMs is required: %s", method, w.Body.String())
+		}
+		if resp.Result.CacheScope != "private" {
+			t.Fatalf("%s: cacheScope = %q, want private (a list may differ per caller)", method, resp.Result.CacheScope)
+		}
+	}
+}
+
 func TestRequireCredentialWithoutVerifierFailsClosed(t *testing.T) {
 	s := NewServerWithConfig(ServerConfig{RequireCredential: true})
 	w := callTool(s.Handler(), "Bearer x.y.z", "list_tickets", `{}`)
