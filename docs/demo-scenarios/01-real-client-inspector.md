@@ -8,6 +8,7 @@
 ## 2. Pre-Conditions
 - The stack is running (`.\deploy\prod\scripts\demo-mode.ps1 -Reset`). Setup and health checks: `docs/DEMO_START_TO_FINISH.md`.
 - Node.js 22.19 or newer (`node --version`). Inspector runs through `npx`; nothing to install.
+- Pause the background traffic generator so the Audit page shows only your calls: `docker stop prod-demo-agent`. When you are done, start it again: `docker start prod-demo-agent`. (`demo-mode.ps1 -Reset` also starts it.)
 - You are in the repo root in PowerShell, with the admin console open at `https://localhost:8444/audit` in a browser tab.
 - Run Inspector once beforehand so `npx` has downloaded it. It needs internet the first time; the curl fallback in Step 6 needs nothing.
 

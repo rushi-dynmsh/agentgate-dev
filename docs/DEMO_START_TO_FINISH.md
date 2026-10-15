@@ -69,7 +69,11 @@ Get-Content deploy\prod\secrets\admin_initial_password
 ## Part 4 — The demo, in order
 
 1. **Admin console** (`https://localhost:8444`): show the Dashboard and the Audit page. The background demo agent creates live traffic.
-2. **Real MCP client** (this is the main proof). Run in a PowerShell window; the token lasts **5 minutes**, so run it right before you show it:
+2. **Real MCP client** (this is the main proof). First pause the background traffic generator, so the Audit page shows only your own calls:
+   ```powershell
+   docker stop prod-demo-agent
+   ```
+   Then, in a PowerShell window (the token lasts **5 minutes**, so run it right before you show it):
    ```powershell
    $agentSecret = (Get-Content deploy\prod\secrets\agent_reader_secret).Trim()
    $tokenResp = curl.exe -k -s -X POST https://localhost:8443/realms/agentgate/protocol/openid-connect/token -H "Content-Type: application/x-www-form-urlencoded" -d "grant_type=client_credentials&client_id=agent-reader&client_secret=$agentSecret"
@@ -78,9 +82,10 @@ Get-Content deploy\prod\secrets\admin_initial_password
    $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
    npx @modelcontextprotocol/inspector --server-url https://localhost:3443/mcp --transport http --protocol-era modern --header "Authorization: Bearer $agentToken"
    ```
-   In the browser tab that opens: confirm the green **Connected**, click **Tools** (three tools listed on the left). Click `list_tickets`, leave the optional `status_filter` empty, click **Execute Tool** (works: three tickets). Then click `delete_ticket`, type `TCK-1001` in `ticket_id`, click **Execute Tool** (blocked with a JSON-RPC error). Required fields are marked `*`, and the button stays grey until they are filled. Then go to the admin console's Audit page and point at the matching ALLOW and DENY rows. Details and the command-line fallback: `docs/demo-scenarios/01-real-client-inspector.md`.
-3. **Change a rule live:** `docs/DEMO_SCRIPT.md` Step 4 (reclassify a tool) and Step 5 (policy dry-run and rollback).
-4. **Prove the log can't be tampered with:** `docker exec prod-agentgate /bin/agentgate verify-audit -workspace default` prints `OK <N> records`.
+   In the browser tab that opens: confirm the green **Connected**, click **Tools** (three tools listed on the left). Click `list_tickets`, leave the optional `status_filter` empty, click **Execute Tool** (works: three tickets). Then click `delete_ticket`, type `TCK-1001` in `ticket_id`, click **Execute Tool** (blocked with a JSON-RPC error). Required fields are marked `*`, and the button stays grey until they are filled. Do **not** restart the traffic generator yet. Then go to the admin console's Audit page and point at the matching ALLOW and DENY rows. Details and the command-line fallback: `docs/demo-scenarios/01-real-client-inspector.md`.
+3. **Show your calls in the audit trail:** open the Audit page and point at your ALLOW and DENY rows (they are the only recent ones). Then restart the traffic generator: `docker start prod-demo-agent`.
+4. **Change a rule live:** `docs/DEMO_SCRIPT.md` Step 4 (reclassify a tool) and Step 5 (policy dry-run and rollback).
+5. **Prove the log can't be tampered with:** `docker exec prod-agentgate /bin/agentgate verify-audit -workspace default` prints `OK <N> records`.
 
 ## Part 5 — Between rehearsals, and shutting down
 
