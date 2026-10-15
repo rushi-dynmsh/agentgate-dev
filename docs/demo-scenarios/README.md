@@ -67,7 +67,7 @@ When the demo stack runs, here is what is running on your machine:
 
 ---
 
-## The 7 Demo Scenarios
+## The 8 Demo Scenarios
 
 Execute these scenarios in sequence or jump to any specific one:
 
@@ -91,3 +91,6 @@ Execute these scenarios in sequence or jump to any specific one:
 
 7. **[Scenario 7: Public Portal & Offline Attack Player](./07-offline-and-attack-player.md)**
    *Demonstrates the public portal, offline local search, and interactive security scenario stepper.*
+
+8. **[Scenario 8: A Real MCP Client (MCP Inspector) Through the Gateway](./08-real-mcp-client-inspector.md)**
+   *Demonstrates the official MCP Inspector tool listing tools, running an allowed call and getting blocked on a forbidden one, with no hand-built requests.*

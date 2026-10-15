@@ -69,8 +69,9 @@ Instead of `200 OK`, you now immediately receive (same verified response shape a
 HTTP/1.1 403 Forbidden
 x-agentgate-decision: deny
 x-agentgate-reason: policy_deny
+content-type: application/json
 
-AgentGate Authorization Denied: policy_deny (an explicit policy denied this request)
+{"jsonrpc":"2.0","id":3,"error":{"code":-40301,"data":{"execution_id":"exec-…","reason":"policy_deny"},"message":"AgentGate Authorization Denied: policy_deny (an explicit policy denied this request)"}}
 ```
 
 ### In the Admin Console UI:

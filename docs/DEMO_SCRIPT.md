@@ -74,7 +74,7 @@ Before starting the presentation:
   2. In the **Decision** dropdown, filter by `DENY`.
   3. Expand a denied row to show the evaluation context: principal agent, requested tool, evaluated Cedar policy version, and rejection reason.
   4. Switch filter back to `All` to show interleaved live events.
-- **Expected Result:** Instant reactive filtering without page reload. Denied events show a reason code such as `policy_deny` or `unknown_tool` (verified live on 2026-10-14; the gateway also returns this as an `x-agentgate-reason` response header on the original call, not a JSON error body, if anyone asks to see the raw HTTP response).
+- **Expected Result:** Instant reactive filtering without page reload. Denied events show a reason code such as `policy_deny` or `unknown_tool` (verified live on 2026-10-14; the gateway returns it as an `x-agentgate-reason` response header and as `error.data.reason` in a standard JSON-RPC error body, if anyone asks to see the raw HTTP response).
 - **Fallback:** View the recorded audit page sequence in `walkthrough.webm`.
 
 ---
@@ -133,6 +133,15 @@ Full script: [`docs/demo-scenarios/05-policy-dryrun-and-rollback.md`](./demo-sce
   where `<N>` is however many events have happened so far (it grows through the demo — don't worry about the exact number).
   *(Confirms all cryptographic hash chain links are valid with zero tampering detected)*
 - **Fallback:** Show the audit page's "Audit Chain" detail panel instead — open `http://localhost:8444/audit`, expand any row.
+
+---
+
+### Step 6b (optional, +2 minutes): Prove it with a real MCP client
+Full script and commands: [`docs/demo-scenarios/08-real-mcp-client-inspector.md`](./demo-scenarios/08-real-mcp-client-inspector.md).
+- **Talking Point:** "Everything so far used hand-built requests. Here is the official MCP Inspector, the tool the MCP community uses to test servers, connecting to our gateway like any real agent."
+- **Action:** Run the command in the scenario (fetch the token right before; it lasts 5 minutes). In Inspector, list tools, run `list_tickets` (works), run `delete_ticket` (blocked, with a clear JSON-RPC error).
+- **Expected Result:** Same ALLOW and DENY as before, now driven by a real client. The agent never knows a security layer is in the path.
+- **Fallback:** Use the command-line equivalents at the bottom of the scenario, or skip this step; nothing later depends on it.
 
 ---
 

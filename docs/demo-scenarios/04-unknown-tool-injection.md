@@ -40,8 +40,9 @@ You receive an immediate HTTP `403 Forbidden` response indicating an unknown too
 HTTP/1.1 403 Forbidden
 x-agentgate-decision: deny
 x-agentgate-reason: unknown_tool
+content-type: application/json
 
-AgentGate Authorization Denied: unknown_tool (tool mcp-probe/dump_customer_database is not registered in governance catalog)
+{"jsonrpc":"2.0","id":4,"error":{"code":-40301,"data":{"execution_id":"exec-…","reason":"unknown_tool"},"message":"AgentGate Authorization Denied: unknown_tool (tool mcp-probe/dump_customer_database is not registered in governance catalog)"}}
 ```
 
 ### In the Admin Console UI:
