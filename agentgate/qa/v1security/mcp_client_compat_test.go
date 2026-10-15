@@ -5,22 +5,16 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"os"
 	"testing"
 )
 
 const mcpRevision = "2026-07-28"
 const deniedErrorCode = -40301 // must equal authz.DeniedJSONRPCErrorCode
 
-// requireMCPCompat gates the real-client suite until the gateway serves MCP
-// itself. Remove the env-var skip once the production gateway config lands.
+// requireMCPCompat skips like the rest of the live suite when no gateway is configured.
 func requireMCPCompat(t *testing.T) *TestConfig {
 	t.Helper()
-	cfg := requireLiveEnvironment(t)
-	if os.Getenv("AGENTGATE_V1_MCP_COMPAT") == "" {
-		t.Skip("real-client compatibility suite: set AGENTGATE_V1_MCP_COMPAT=1")
-	}
-	return cfg
+	return requireLiveEnvironment(t)
 }
 
 type rpcResp struct {
@@ -61,7 +55,18 @@ func mcpPost(t *testing.T, cfg *TestConfig, token string, id int, method, header
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
 	var out rpcResp
-	_ = json.Unmarshal(raw, &out)
+	if err := json.Unmarshal(raw, &out); err != nil {
+		// 2026-07-28 lets a server answer with a request-scoped SSE stream; the
+		// final "data:" frame carries the JSON-RPC response.
+		for _, line := range bytes.Split(raw, []byte("\n")) {
+			if data, ok := bytes.CutPrefix(bytes.TrimSpace(line), []byte("data:")); ok {
+				var frame rpcResp
+				if json.Unmarshal(bytes.TrimSpace(data), &frame) == nil {
+					out = frame
+				}
+			}
+		}
+	}
 	return resp.StatusCode, out, raw
 }
 
