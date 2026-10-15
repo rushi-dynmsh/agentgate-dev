@@ -26,9 +26,16 @@ export default function Home() {
         <Problem />
         <HowItWorks />
         
-        <div id="see-it-block">
-          <AttackPlayer />
-        </div>
+        <section id="see-it-block" className="lp-section">
+          <div className="lp-wrap">
+            <div className="lp-head">
+              <span className="lp-eyebrow">See it in action</span>
+              <h2 className="lp-title">Watch attacks get stopped</h2>
+              <p className="lp-lead">Step through real scenarios: what the agent tried, what AgentGate checked, and the verdict.</p>
+            </div>
+            <AttackPlayer />
+          </div>
+        </section>
         <ConsoleSection />
 
         <Trust />

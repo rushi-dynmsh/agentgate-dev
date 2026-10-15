@@ -1,32 +1,55 @@
 .heroSection {
-  padding: 4rem 0;
+  width: 100%;
+  padding: 88px 0 64px;
   text-align: center;
-  background-color: var(--ifm-color-emphasis-100);
+  background:
+    radial-gradient(900px 420px at 50% -80px, var(--ag-accent-soft), transparent 70%),
+    var(--ag-bg-canvas);
 }
-
 .title {
-  font-size: 3rem;
-  font-weight: bold;
+  margin: 8px 0 20px;
+  font-size: 56px;
+  line-height: 1.08;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ag-text-primary);
 }
-
+.accent { color: var(--ag-accent); }
 .tagline {
-  font-size: 1.5rem;
-  margin-bottom: 1rem;
+  max-width: 680px;
+  margin: 0 auto 32px;
+  font-size: 19px;
+  line-height: 1.6;
+  color: var(--ag-text-secondary);
 }
-
-.promise {
-  font-size: 1.25rem;
-  margin-bottom: 2rem;
-  color: var(--ifm-color-emphasis-700);
+.buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 56px; }
+.animationCard {
+  max-width: 880px;
+  margin: 0 auto 40px;
+  padding: 24px 16px 8px;
+  background: var(--ag-bg-surface);
+  border: 1px solid var(--ag-border);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(67, 56, 202, 0.10);
 }
-
-.buttons {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  margin-bottom: 3rem;
+.facts {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  max-width: 960px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
 }
-
-.animationSlot {
-  min-height: 200px;
+.facts li {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 14px 16px; text-align: left;
+  border-left: 3px solid var(--ag-accent);
+}
+.facts strong { font-size: 15px; color: var(--ag-text-primary); }
+.facts span { font-size: 13.5px; color: var(--ag-text-secondary); }
+@media (max-width: 640px) {
+  .heroSection { padding: 56px 0 40px; }
+  .title { font-size: 36px; }
+  .tagline { font-size: 16px; }
 }

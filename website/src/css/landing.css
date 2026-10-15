@@ -1,0 +1,33 @@
+/* Landing-page building blocks. Scoped by the .lp- prefix so docs pages are unaffected. */
+.lp-section { width: 100%; padding: 88px 0; }
+.lp-section--alt { background: var(--ag-bg-surface); border-top: 1px solid var(--ag-border); border-bottom: 1px solid var(--ag-border); }
+.lp-wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+.lp-head { max-width: 680px; margin: 0 auto 48px; text-align: center; }
+.lp-eyebrow {
+  display: inline-block; margin-bottom: 12px; padding: 4px 12px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  background: var(--ag-accent-soft); color: var(--ag-accent-hover);
+}
+[data-theme='dark'] .lp-eyebrow { color: #c7d2fe; }
+.lp-title { margin: 0 0 14px; font-size: 34px; line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; color: var(--ag-text-primary); }
+.lp-lead { margin: 0; font-size: 17px; line-height: 1.65; color: var(--ag-text-secondary); }
+.lp-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.lp-card {
+  padding: 24px; background: var(--ag-bg-surface); border: 1px solid var(--ag-border); border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(24, 24, 27, .04); transition: border-color .15s, box-shadow .15s;
+}
+.lp-section--alt .lp-card { background: var(--ag-bg-canvas); }
+.lp-card:hover { border-color: var(--ag-accent); box-shadow: 0 4px 16px rgba(67, 56, 202, .10); }
+.lp-card h3 { margin: 12px 0 8px; font-size: 18px; font-weight: 600; color: var(--ag-text-primary); }
+.lp-card p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--ag-text-secondary); }
+.lp-card a { color: var(--ag-accent); font-weight: 500; }
+.lp-icon {
+  width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--ag-accent-soft); color: var(--ag-accent-hover);
+}
+[data-theme='dark'] .lp-icon { color: #c7d2fe; }
+.lp-icon svg { width: 20px; height: 20px; }
+@media (max-width: 640px) {
+  .lp-section { padding: 56px 0; }
+  .lp-title { font-size: 26px; }
+}
