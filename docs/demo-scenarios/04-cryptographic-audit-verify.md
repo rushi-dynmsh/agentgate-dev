@@ -1,4 +1,4 @@
-# Scenario 6: Cryptographic Audit Hash Verification
+# Scenario 4: Cryptographic Audit Hash Verification
 
 ## 1. What This Proves (What to Say)
 > "In high-stakes enterprise compliance, standard database logs are not enough because a database administrator or malicious actor with root access can edit rows after the fact. AgentGate writes every audit event into a SHA-256 cryptographic hash chain—similar to a blockchain or git tree. We provide a CLI tool that verifies the mathematical continuity of the chain."
@@ -44,4 +44,4 @@ OK <N> records
 3. Show the **"Audit Chain"** section in the details drawer:
    - **Current Hash:** `sha256:...`
    - **Previous Hash:** `sha256:...`
-4. Explain: Every single tool call we made in Scenarios 1 through 4 is immutably anchored in this sequence.
+4. Explain: Every single tool call we made in Scenarios 1 and 2 is immutably anchored in this sequence.

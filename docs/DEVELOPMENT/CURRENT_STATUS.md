@@ -17,7 +17,7 @@ Every subsystem, security boundary, and operational requirement defined in `docs
 - **Definitive operator runbook:** 12 operational runbook procedures documented in `docs/OPERATIONS/RUNBOOK.md`.
 - **no known critical or high defects found by the 17-scenario live gate, which passed 3 consecutive from-scratch runs in the Docker sandbox on 2026-10-09; known limitations are listed in the runbook; GitHub CI has not run.**
 
-- **Real MCP clients (2026-10-15):** MCP Inspector (modern era, `--protocol-era modern`) connects through the gateway, lists tools, runs allowed calls and gets JSON-RPC denials; `qa/v1security` now has 22 live tests (`TestV1_18`–`TestV1_22` cover the real-client path). See `docs/demo-scenarios/08-real-mcp-client-inspector.md` and Runbook Known Limitations 11-13.
+- **Real MCP clients (2026-10-15):** MCP Inspector (modern era, `--protocol-era modern`) connects through the gateway, lists tools, runs allowed calls and gets JSON-RPC denials; `qa/v1security` now has 22 live tests (`TestV1_18`–`TestV1_22` cover the real-client path). See `docs/demo-scenarios/01-real-client-inspector.md` and Runbook Known Limitations 11-13.
 
 ### Checkpoint Milestones
 

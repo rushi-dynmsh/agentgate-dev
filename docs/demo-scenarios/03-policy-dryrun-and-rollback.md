@@ -1,4 +1,4 @@
-# Scenario 5: Policy Lifecycle (Dry-Run & Instant Rollback)
+# Scenario 3: Policy Lifecycle (Dry-Run & Instant Rollback)
 
 ## 1. What This Proves (What to Say)
 > "Deploying a broken authorization policy in production can take down critical business workflows. AgentGate treats policies with the rigor of code: policies are versioned, candidates can be tested against historical audit logs using 'Dry-Run Simulation' to measure counterfactual impact, and if an issue occurs, operators can atomically roll back with a single click."

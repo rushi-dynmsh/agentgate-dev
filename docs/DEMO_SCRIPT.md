@@ -1,37 +1,19 @@
 # AgentGate Management Demo Script
 
-**Estimated Duration:** ~12 minutes  
+**Estimated Duration:** ~14 minutes (about 12 without Step 2b)  
 **Target Audience:** Engineering Leadership, Security Architects, Management  
 **Presenter Goal:** Demonstrate that AgentGate operates as an uncompromising, real-time control plane in the only path between AI agents and organizational tools.
 
 ---
 
-## Pre-Flight Checklist (T - 5 minutes, do this the night before too)
+## Pre-Flight Checklist (the night before, and again 5 minutes before)
 
-Before starting the presentation:
-- [ ] Ensure Docker Desktop is active (open it, wait for "Engine running").
-- [ ] Start and reset the stack. In PowerShell, from the repo root:
-      ```powershell
-      .\deploy\prod\scripts\demo-mode.ps1 -Reset
-      ```
-      Wait for it to print `AgentGate Demo Environment is Running`. The first run after a reboot can take several minutes (it rebuilds images); a repeat run is faster.
-- [ ] Start the documentation/landing site, in a **second** PowerShell window (leave it running):
-      ```powershell
-      cd website
-      npm run serve -- --port 3000
-      ```
-- [ ] **One-time per machine, do this before the first login attempt ever:** add a hosts-file entry so your browser can resolve Keycloak's internal name, or "Sign in with SSO" below fails with `DNS_PROBE_FINISHED_NXDOMAIN`. Open Notepad **as Administrator**, open `C:\Windows\System32\drivers\etc\hosts`, add `127.0.0.1 keycloak` at the end, save, then run `ipconfig /flushdns`. Full explanation: `docs/OPERATIONS/RUNBOOK.md` Known Limitation #10. Not needed again after the first time on a given machine.
-- [ ] Open three browser tabs:
-  1. **Landing Page & Documentation:** `http://localhost:3000`
-  2. **Admin Console:** `https://localhost:8444` — your browser will warn about the certificate; click "Advanced" → "Proceed". Click **Sign in with SSO**, username `admin`, password from:
-     ```powershell
-     Get-Content deploy\prod\secrets\admin_initial_password
-     ```
-  3. A spare blank tab for anything you need mid-demo.
-  - **If login fails with "HTTP ERROR 431":** stale cookies piled up on `localhost`/`keycloak` from earlier attempts. Clear site data for both (DevTools → Application → Storage → "Clear site data") or switch to a fresh Incognito window, and retry.
-- [ ] Confirm the landing page's media loads: open `http://localhost:3000/media/manifest.json` directly — it should show JSON, not an error.
-- [ ] Have the fallback video ready in case anything misbehaves live: `website/static/media/walkthrough.webm` (open it once beforehand so it's not the first time it plays).
-- [ ] **Do a full dry run of this entire script, once, before the real thing.** That's the only way to catch anything specific to your machine.
+All setup lives in one place: **[`docs/DEMO_START_TO_FINISH.md`](./DEMO_START_TO_FINISH.md)**. Do its Parts 1 to 3 (one-time setup, start everything, health check), then confirm:
+- [ ] The health check in Part 3 passes (seven containers up, then `200`, `401`, `200`).
+- [ ] You are logged in to the admin console (`https://localhost:8444`) in Tab 2, and the documentation site is open in Tab 1 (`http://localhost:3000`).
+- [ ] You have run MCP Inspector once on this machine, so `npx` has downloaded it (it needs internet the first time).
+- [ ] The fallback video opens: `website/static/media/walkthrough.webm`.
+- [ ] **You have run this whole script once, start to finish, before the real thing.** That is the only way to catch anything specific to your machine.
 
 ---
 
@@ -67,6 +49,15 @@ Before starting the presentation:
 
 ---
 
+### Step 2b: Prove it with a real MCP client (+2 minutes, no fixed timestamp)
+Full script and commands: [`docs/demo-scenarios/01-real-client-inspector.md`](./demo-scenarios/01-real-client-inspector.md).
+- **Talking Point:** "The dashboard shows traffic from our own test agent. Now the official MCP Inspector, the tool the MCP community uses to test servers, connects to our gateway like any real AI agent. An allowed call goes through. A forbidden one is blocked with a clear reason."
+- **Action:** Run the command from the scenario's Step 1 (fetch the token right before; it lasts 5 minutes). In Inspector: list the tools, run `list_tickets` (works), then run `delete_ticket` with `{"ticket_id": "TCK-1001"}` (blocked, with a clear JSON-RPC error). Keep the admin console's Audit page ready for Step 3, where these two calls show up as fresh ALLOW and DENY rows.
+- **Expected Result:** Three tools listed, tickets returned for the allowed call, a `policy_deny` error for the forbidden call.
+- **Fallback:** The scenario's Step 6 gives the same calls as plain `curl` commands that need no Node or internet. If both fail, say it plainly and move on to Step 3; nothing later depends on this step.
+
+---
+
 ### Step 3: Audit Trail & Real-Time Decision Filtering (05:00 – 07:00)
 - **Talking Point:** "Every single invocation decision—whether allowed or denied—is written to an immutable, cryptographically chained audit log."
 - **Action:**
@@ -80,10 +71,10 @@ Before starting the presentation:
 ---
 
 ### Step 4: Live Tool Reclassification (07:00 – 08:30)
-Full script with exact commands: [`docs/demo-scenarios/03-live-tool-reclassification.md`](./demo-scenarios/03-live-tool-reclassification.md).
+Full script with exact commands: [`docs/demo-scenarios/02-live-tool-reclassification.md`](./demo-scenarios/02-live-tool-reclassification.md).
 - **Talking Point:** "Security administrators can adjust tool risk classifications instantly without restarting backend microservices."
 - **Action:**
-  1. (Optional, in a terminal first) Call `update_ticket_status` as the `agent-admin` identity — it succeeds, since admin is allowed write today. Exact command is in the linked scenario doc.
+  1. (Optional, first) Call `update_ticket_status` as the `agent-admin` identity, from a terminal or from Inspector — it succeeds, since admin is allowed write today. Exact commands are in the linked scenario doc.
   2. Click **Tools & resources** in the navigation (`/tools`).
   3. Locate the `mcp-probe/update_ticket_status` tool.
   4. Click **Edit**. Change the risk classification to `destructive`.
@@ -104,7 +95,7 @@ Full script with exact commands: [`docs/demo-scenarios/03-live-tool-reclassifica
 ---
 
 ### Step 5: Policy Lifecycle: Dry-Run, Activate & Rollback (08:30 – 10:30)
-Full script: [`docs/demo-scenarios/05-policy-dryrun-and-rollback.md`](./demo-scenarios/05-policy-dryrun-and-rollback.md).
+Full script: [`docs/demo-scenarios/03-policy-dryrun-and-rollback.md`](./demo-scenarios/03-policy-dryrun-and-rollback.md).
 - **Talking Point:** "AgentGate treats security policies like code: versioned, staged, dry-run tested, and instantly rollbackable."
 - **Action:**
   1. Navigate to **Policies** (`/policies`). View active version `v1.0.0`.
@@ -133,15 +124,6 @@ Full script: [`docs/demo-scenarios/05-policy-dryrun-and-rollback.md`](./demo-sce
   where `<N>` is however many events have happened so far (it grows through the demo — don't worry about the exact number).
   *(Confirms all cryptographic hash chain links are valid with zero tampering detected)*
 - **Fallback:** Show the audit page's "Audit Chain" detail panel instead — open `http://localhost:8444/audit`, expand any row.
-
----
-
-### Step 6b (optional, +2 minutes): Prove it with a real MCP client
-Full script and commands: [`docs/demo-scenarios/08-real-mcp-client-inspector.md`](./demo-scenarios/08-real-mcp-client-inspector.md).
-- **Talking Point:** "Everything so far used hand-built requests. Here is the official MCP Inspector, the tool the MCP community uses to test servers, connecting to our gateway like any real agent."
-- **Action:** Run the command in the scenario (fetch the token right before; it lasts 5 minutes). In Inspector, list tools, run `list_tickets` (works), run `delete_ticket` (blocked, with a clear JSON-RPC error).
-- **Expected Result:** Same ALLOW and DENY as before, now driven by a real client. The agent never knows a security layer is in the path.
-- **Fallback:** Use the command-line equivalents at the bottom of the scenario, or skip this step; nothing later depends on it.
 
 ---
 

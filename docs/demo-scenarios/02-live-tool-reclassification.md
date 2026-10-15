@@ -1,4 +1,4 @@
-# Scenario 3: Live Tool Risk Reclassification (Dynamic Governance)
+# Scenario 2: Live Tool Risk Reclassification (Dynamic Governance)
 
 ## 1. What This Proves (What to Say)
 > "In traditional architectures, changing an API endpoint's security classification requires editing code, changing config maps, and redeploying or restarting microservices. With AgentGate, security teams can reclassify tool risk in real time through the console. Changes take effect on the very next incoming packet without interrupting running services."
@@ -13,7 +13,7 @@
 
 ## 3. Step-by-Step Execution
 
-**Correction (2026-10-14): the tool used here is `update_ticket_status`, not `close_ticket` — there is no `close_ticket` tool anywhere in the real system (checked against `deploy/demo/support-desk-mcp/main.go` — note the tool *server's* folder is named `support-desk-mcp`, but it registers itself in the live catalog under the backend id `mcp-probe`, which is the name that actually appears in the Tools and Audit pages), so the original version of this scenario would fail with "unknown tool" instead of demonstrating reclassification. Also use the `agent-admin` identity, not `agent-reader`: under the baseline policy, `update_ticket_status` is risk `write`, and a reader is never allowed `write` — so a reader's call would already be denied before you touch anything, with nothing visibly changing when you reclassify. Admin is allowed `read` and `write` but explicitly forbidden from `destructive`, which is what makes the before/after actually visible.**
+**Why this scenario uses `update_ticket_status` and the `agent-admin` identity:** under the baseline policy, `update_ticket_status` is a `write` tool. A reader is never allowed `write`, so a reader's call would be denied before you change anything and the demo would show no difference. An admin is allowed `read` and `write` but never `destructive`, so reclassifying the tool to `destructive` flips the **same call** from allowed to denied, which is what makes the before and after visible. You can make the calls from the command line (below) or from Inspector as `agent-admin` (see Scenario 1, "Optional: the admin agent").
 
 ### Step 1: Observe the Initial State (Allowed Call)
 In terminal, call `update_ticket_status` as `agent-admin`. Under the baseline policy it is classified `write`, which admin is allowed:
@@ -26,7 +26,7 @@ $tokenResp = curl.exe -k -s -X POST https://localhost:8443/realms/agentgate/prot
 $agentToken = ($tokenResp | ConvertFrom-Json).access_token
 
 $payload = '{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"update_ticket_status\",\"arguments\":{\"ticket_id\":\"TCK-1002\",\"new_status\":\"resolved\"}}}'
-curl.exe -k -s -i -X POST https://localhost:3443/ `
+curl.exe -k -s -i -X POST https://localhost:3443/mcp `
     -H "Authorization: Bearer $agentToken" `
     -H "Content-Type: application/json" `
     -d $payload
@@ -53,7 +53,7 @@ Now switch to your browser:
 Return to your PowerShell terminal and run the exact same command from Step 1 again (reuse the `$payload` and `$agentToken` variables already in your session):
 
 ```powershell
-curl.exe -k -s -i -X POST https://localhost:3443/ `
+curl.exe -k -s -i -X POST https://localhost:3443/mcp `
     -H "Authorization: Bearer $agentToken" `
     -H "Content-Type: application/json" `
     -d $payload
@@ -64,7 +64,7 @@ curl.exe -k -s -i -X POST https://localhost:3443/ `
 ## 4. What to Look For (Expected Result)
 
 ### In the Terminal:
-Instead of `200 OK`, you now immediately receive (same verified response shape as Scenario 2):
+Instead of `200 OK`, you now immediately receive (same verified response shape as the blocked call in Scenario 1):
 ```http
 HTTP/1.1 403 Forbidden
 x-agentgate-decision: deny

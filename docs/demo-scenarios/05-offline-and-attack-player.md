@@ -1,4 +1,4 @@
-# Scenario 7: Public Portal & Offline Attack Player
+# Scenario 5: Public Portal & Offline Attack Player
 
 ## 1. What This Proves (What to Say)
 > "AgentGate comes equipped with a developer portal and documentation website that operates 100% offline with zero external CDN dependencies, making it suitable for air-gapped secure enterprise enclaves. It also includes an interactive 'Attack Scenarios Player' driven directly by the repository's security test suite."
