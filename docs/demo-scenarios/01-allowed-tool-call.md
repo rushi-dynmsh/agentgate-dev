@@ -58,7 +58,7 @@ You will receive an HTTP `200 OK` response with a JSON-RPC payload containing sa
 1. Go to **`https://localhost:8444/audit`**.
 2. Notice the top row of the table:
    - **Decision:** Green badge displaying **`ALLOW`**.
-   - **Tool:** `support-desk-mcp/list_tickets`.
+   - **Tool:** `mcp-probe/list_tickets`.
    - **Principal:** `agent-reader`.
 3. Click the row to expand the details:
    - **Risk Level:** `read`.
@@ -71,6 +71,6 @@ You will receive an HTTP `200 OK` response with a JSON-RPC payload containing sa
 1. The agent sent its request with its Keycloak identity token to the Gateway (`port 3443`).
 2. Gateway intercepted the request via Envoy `ext_authz` and called AgentGate (`port 9443`).
 3. AgentGate extracted the tool name (`list_tickets`), checked the tool catalog, saw risk was `read`.
-4. Cedar evaluated the rule: `permit(principal in Role::"support-reader", action, resource);` ➔ **ALLOW**.
-5. AgentGate minted a short-lived RS256 JWT, stripped the agent's inbound token, injected the newly minted token, and forwarded the request to `support-desk-mcp`.
+4. Cedar evaluated the real rule (`agentgate/internal/fixturepolicy/fixturepolicy.go`): `permit(principal in AgentGate::Role::"reader", action == AgentGate::Action::"InvokeTool", resource) when { resource.risk == "read" };` ➔ **ALLOW**.
+5. AgentGate minted a short-lived RS256 JWT, stripped the agent's inbound token, injected the newly minted token, and forwarded the request to `mcp-probe`.
 6. An immutable audit record was written to PostgreSQL.

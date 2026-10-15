@@ -115,8 +115,17 @@ if (-not (Test-Path $jwksFile)) {
 }
 
 # 7. Ensure permissions: files readable by non-root containers (chmod 644)
+# Run with ErrorActionPreference Continue: PowerShell 5.1 turns any stderr
+# line from a native command into a terminating error under "Stop", even on
+# exit code 0, and `docker run` can print image-pull/status lines to stderr.
 Write-Host "  Applying permissions to secrets using Docker..." -ForegroundColor Yellow
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 docker run --rm -v "${secretsDir}:/sec" alpine sh -c "chmod 644 /sec/*" | Out-Null
+$ErrorActionPreference = $prevEAP
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to apply permissions to secrets (exit code $LASTEXITCODE)"
+}
 
 # 8. Render .env from .env.example
 if (-not (Test-Path $envFile)) {

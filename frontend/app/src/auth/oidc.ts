@@ -28,6 +28,24 @@ function getManager(): UserManager {
   const c = getConfig();
   manager = new UserManager({
     authority: c.oidcAuthority,
+    // Explicit metadata, keyed off oidcAuthority (the host the BROWSER can
+    // reach), skips oidc-client-ts's automatic discovery fetch. This matters
+    // because Keycloak's own discovery document advertises endpoints built
+    // from its fixed internal --hostname (e.g. the Docker-internal service
+    // name), which the browser cannot resolve, even though oidcAuthority
+    // itself (used only to fetch that document) is browser-reachable.
+    // `issuer` is the one exception: it must equal the real `iss` claim
+    // Keycloak stamps into tokens (oidcIssuer), not the browser-facing host,
+    // or oidc-client-ts's own client-side id_token validation rejects every
+    // login with an issuer mismatch.
+    metadata: {
+      issuer: c.oidcIssuer,
+      authorization_endpoint: `${c.oidcAuthority}/protocol/openid-connect/auth`,
+      token_endpoint: `${c.oidcAuthority}/protocol/openid-connect/token`,
+      userinfo_endpoint: `${c.oidcAuthority}/protocol/openid-connect/userinfo`,
+      end_session_endpoint: `${c.oidcAuthority}/protocol/openid-connect/logout`,
+      jwks_uri: `${c.oidcAuthority}/protocol/openid-connect/certs`,
+    },
     client_id: c.oidcClientId,
     redirect_uri: `${window.location.origin}/auth/callback`,
     post_logout_redirect_uri: window.location.origin,

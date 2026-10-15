@@ -9,6 +9,12 @@ Welcome to the end-to-end execution guide for AgentGate. This repository contain
 
 ---
 
+## A note on exact wording in these scenarios
+
+Each scenario shows example terminal output and UI text to help you know what to expect. Two things are guaranteed and verified against the real code: the HTTP status code (e.g. `403`), and that the Audit page shows a new row with the right decision (ALLOW/DENY) and tool name. The exact JSON field names and English wording in the printed examples have not all been individually re-verified against the running server and may differ slightly from what you actually see. If the on-screen result differs in wording but matches on status code and ALLOW/DENY, trust the screen, not this document, and keep going — don't stop to debug a wording mismatch live.
+
+---
+
 ## System Components Quick Map
 
 When the demo stack runs, here is what is running on your machine:
@@ -26,6 +32,8 @@ When the demo stack runs, here is what is running on your machine:
 
 ---
 
+**Shell assumption:** every command in these scenarios is Windows PowerShell (the curl calls use PowerShell-specific quoting). If you're on macOS/Linux, the same calls work with `curl` directly, but you'll need to re-quote the JSON body with single quotes instead of the escaped-double-quote style shown here.
+
 ## Pre-Flight Checklist (Do this first)
 
 1. **Start Docker Desktop:** Ensure Docker Desktop is running on Windows (`docker ps` should work in PowerShell).
@@ -41,9 +49,21 @@ When the demo stack runs, here is what is running on your machine:
    cd website
    npm run serve -- --port 3000
    ```
-4. **Open Browser Tabs:**
+4. **One-time setup, first run only — make your browser able to log in.** Keycloak (the login system) identifies itself internally as `keycloak`, a name only the containers can resolve, not your browser. Without this step, clicking "Sign in with SSO" below will fail with `DNS_PROBE_FINISHED_NXDOMAIN`. Fix it once:
+   - Open Notepad **as Administrator** (right-click → "Run as administrator").
+   - Open `C:\Windows\System32\drivers\etc\hosts`, add this line at the end, save:
+     ```
+     127.0.0.1 keycloak
+     ```
+   - Run `ipconfig /flushdns` in any terminal.
+   - (Not needed again after this — it's a one-time machine setting. Full explanation: `docs/OPERATIONS/RUNBOOK.md` Known Limitation #10.)
+5. **Open Browser Tabs:**
    - **Tab 1:** `http://localhost:3000` (Landing page & Attack player)
-   - **Tab 2:** `https://localhost:8444` (Admin Console. Accept self-signed cert warning, click "Sign in with SSO", log in as `admin` with password from `deploy/prod/secrets/admin_initial_password`).
+   - **Tab 2:** `https://localhost:8444` (Admin Console). Your browser will warn the certificate isn't trusted — that's expected (self-signed, for this demo only); click "Advanced" → "Proceed". Click **Sign in with SSO**, username `admin`, password from:
+     ```powershell
+     Get-Content deploy\prod\secrets\admin_initial_password
+     ```
+   - **If login fails with "HTTP ERROR 431"**: too many old cookies piled up on `localhost`/`keycloak` from previous attempts. Clear site data for both (DevTools → Application → Storage → "Clear site data"), or just use a fresh Incognito window, and retry.
 
 ---
 
@@ -64,7 +84,7 @@ Execute these scenarios in sequence or jump to any specific one:
    *Demonstrates how strict schema/whitelist enforcement blocks hallucinated or injected tool calls.*
 
 5. **[Scenario 5: Policy Lifecycle (Dry-Run & Instant Rollback)](./05-policy-dryrun-and-rollback.md)**
-   *Demonstrates creating a candidate Cedar policy, testing impact against historical traffic with dry-run, and rolling back.*
+   *Demonstrates building a policy change with no-code controls (no Cedar typing), testing its impact with dry-run against 5 representative sample requests, and rolling back.*
 
 6. **[Scenario 6: Cryptographic Audit Hash Verification](./06-cryptographic-audit-verify.md)**
    *Demonstrates running the CLI verification tool to mathematically prove audit log integrity and tamper resistance.*

@@ -35,12 +35,13 @@ curl.exe -k -s -i -X POST https://localhost:3443/ `
 ## 4. What to Look For (Expected Result)
 
 ### In the Terminal:
-You receive an immediate HTTP `403 Forbidden` response indicating an unknown tool:
+You receive an immediate HTTP `403 Forbidden` response indicating an unknown tool (verified live on 2026-10-14, this is the real, exact response):
 ```http
-HTTP/2 403
-content-type: application/json
+HTTP/1.1 403 Forbidden
+x-agentgate-decision: deny
+x-agentgate-reason: unknown_tool
 
-{"error":"access_denied","reason":"unknown_tool","message":"tool 'dump_customer_database' is not registered in the tool catalog"}
+AgentGate Authorization Denied: unknown_tool (tool mcp-probe/dump_customer_database is not registered in governance catalog)
 ```
 
 ### In the Admin Console UI:

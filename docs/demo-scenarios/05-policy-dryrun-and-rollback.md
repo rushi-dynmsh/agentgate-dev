@@ -22,23 +22,21 @@
 ---
 
 ### Step 2: Create a Candidate Policy
-1. Click the **"Create Candidate"** button.
-2. In the candidate policy dialog:
-   - Provide a description: `Stricter read-only lockdown for weekend maintenance`.
-   - In the Cedar editor, add or update a policy statement (e.g. adding a restrictive clause).
-3. Click **Create Candidate**.
-4. The candidate appears in the table under version `v1.1.0` (or next sequence).
+1. Click **"Create candidate"** (`/policies/new`).
+2. **You do not write Cedar by hand.** The page is a no-code rule builder: pick a role (reader/admin/payer/all), allow or deny, and tick which risk levels (read/write/destructive) it applies to. AgentGate generates the actual Cedar text from your choices and shows it read-only below the form — you can glance at it, but you build the rule with the controls, not by typing policy syntax.
+3. Give it a description, e.g. `Stricter read-only lockdown for weekend maintenance`.
+4. Find the **Admin** rule row and **uncheck "write"**, leaving only "read" checked. This proposes making admins read-only.
+5. Click **Validate policy**, then **Save**. The candidate appears in the table as the next version (e.g. `v1.1.0`).
 
 ---
 
 ### Step 3: Run Dry-Run Simulation (The Safety Guard)
-1. Next to your candidate policy, click **Dry-Run Analysis**.
-2. **What this does:** AgentGate takes the candidate Cedar code and simulates evaluating it against the last 500 real audit events recorded in your PostgreSQL database.
+1. Next to your candidate policy, click **Dry-Run Analysis** (or **Run dry run** on its page).
+2. **What this does, exactly — don't overstate it:** it replays the candidate against **5 fixed, representative sample requests** (a reader and an admin each trying a read, a write, and a destructive action) — **not** live historical traffic from the database. This is a deliberate, honest limitation worth saying out loud if asked: it tells you whether the *shape* of access changes as intended, not a statistical measure over real past requests.
 3. **What the screen displays:**
-   - **Counterfactual Impact Summary:**
-     - Total Historical Events Evaluated: `500`
-     - Impact: Shows how many transactions that previously succeeded would now be **DENIED**.
-   - This gives the security engineer mathematical confidence *before* activating the change.
+   - **Total compared:** `5`
+   - **Changed decisions:** how many of those 5 would flip from ALLOW to DENY. Expect the admin-write sample to flip — that's the lockdown working.
+   - This gives the security engineer concrete, verifiable confidence *before* activating the change — just over 5 known cases, not a statistical sample.
 
 ---
 

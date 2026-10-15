@@ -1,28 +1,31 @@
-﻿#!/usr/bin/env node
-// Generate docs/history/commit-index.md from the monorepo git log.
+#!/usr/bin/env node
+// Generate docs/developer/history/commit-index.md from the monorepo git log.
 //
-// Run from the REPO ROOT (developer-docs/../), not from developer-docs/:
+// Run from the REPO ROOT (website/../), not from website/:
 //
-//   node developer-docs/artefacts/scripts/generate-commit-index.mjs
+//   node website/scripts/generate-commit-index.mjs
 //
 // The index lists the FULL product history from HEAD (non-merge commits,
 // newest first) and links every hash to its GitHub permalink:
 //
 //   https://github.com/rushi-dynmsh/agentgate-dev/commit/<hash>
 //
-// SELF-REFERENCE LOOP — developer-docs commits are EXCLUDED from the index. If the
-// index included them, regenerating it would itself create a developer-docs commit,
-// which would then appear in the index, forcing another regeneration, forever.
-// Excluding the developer-docs path keeps product commits flowing into the index
-// while making the regeneration commit itself invisible.
+// SELF-REFERENCE LOOP — commits that touch ONLY this generated file are
+// EXCLUDED from the index. If the index included them, regenerating it would
+// itself create such a commit, which would then appear in the index, forcing
+// another regeneration, forever. (Unlike the old developer-docs/-based
+// version of this script, this does NOT exclude the whole website/ tree —
+// website/ is real product surface now, not just meta-documentation, so
+// excluding it wholesale would wrongly scrub genuine feature commits from
+// the index. Only the generated output file itself is excluded.)
 //
 // Links only resolve once the branch is pushed, so the script checks the live
 // remote tip and WARNs if HEAD is ahead of it (unpublished commits would 404).
 //
-// Output is written to developer-docs/docs/history/commit-index.md. The generated
-// file is committed so the static site reflects the git history at generation
-// time; regenerate whenever meaningful commits land. Safe to re-run — it
-// overwrites only its own target file.
+// Output is written to website/docs/developer/history/commit-index.md. The
+// generated file is committed so the static site reflects the git history at
+// generation time; regenerate whenever meaningful commits land. Safe to
+// re-run — it overwrites only its own target file.
 
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -31,9 +34,9 @@ import { writeFileSync } from "node:fs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 
-// The repo root = three levels above this script (developer-docs/artefacts/scripts/).
-const repoRoot = join(scriptDir, "..", "..", "..");
-const outFile = join(repoRoot, "developer-docs", "docs", "history", "commit-index.md");
+// The repo root = two levels above this script (website/scripts/).
+const repoRoot = join(scriptDir, "..", "..");
+const outFile = join(repoRoot, "website", "docs", "developer", "history", "commit-index.md");
 
 const REPO_BASE = "https://github.com/rushi-dynmsh/agentgate-dev";
 const REMOTE = "origin";
@@ -77,8 +80,10 @@ function run() {
 
   // NOTE: --pretty=%h%x09%cs%x09%an%x09%s keeps subjects free of emoticons/
   // control chars that would break the markdown table. git log is newest-first
-  // by default; --no-merges keeps only real commits. Pathspec EXCLUDES developer-docs
-  // so maintenance commits don't feed the self-reference loop described above.
+  // by default; --no-merges keeps only real commits. Pathspec EXCLUDES only
+  // the generated output file itself, so maintenance commits that touch just
+  // that file don't feed the self-reference loop described above, while
+  // other website/ commits (real product work) still appear.
   const log = gitTry([
     "log",
     "--pretty=format:%h%x09%cs%x09%an%x09%s",
@@ -87,7 +92,7 @@ function run() {
     head,
     "--",
     ".",
-    ":(exclude)developer-docs",
+    ":(exclude)website/docs/developer/history/commit-index.md",
   ]);
   if (log === null) throw new Error("git log failed — cannot generate commit index.");
 
@@ -109,16 +114,16 @@ function run() {
   const md = `# Commit Index
 
 <!-- GENERATED FILE — do not edit by hand. -->
-<!-- Source: node developer-docs/artefacts/scripts/generate-commit-index.mjs (run from repo root). -->
+<!-- Source: node website/scripts/generate-commit-index.mjs (run from repo root). -->
 
 Automatically transcribed from the monorepo \`git log\` (non-merge **product**
-commits — developer-docs maintenance commits are excluded so the index does not feed
+commits — website maintenance commits are excluded so the index does not feed
 its own regeneration) at generation time, **newest first**, for all product commits
 reachable from \`HEAD\` (\`${headShort}\`). ${count} commits listed; each hash links
 to its GitHub permalink. Regenerate with:
 
 \`\`\`bash
-node developer-docs/artefacts/scripts/generate-commit-index.mjs
+node website/scripts/generate-commit-index.mjs
 \`\`\`
 
 | Commit | Date | Author | Subject |

@@ -35,21 +35,22 @@ curl.exe -k -s -i -X POST https://localhost:3443/ `
 ## 4. What to Look For (Expected Result)
 
 ### In the Terminal:
-You will immediately receive an HTTP `403 Forbidden` response:
+You will immediately receive an HTTP `403 Forbidden` response (verified live on 2026-10-14, this is the real, exact response — not an example):
 ```http
-HTTP/2 403
-content-type: application/json
+HTTP/1.1 403 Forbidden
+x-agentgate-decision: deny
+x-agentgate-reason: policy_deny
 
-{"error":"access_denied","reason":"policy_denied","message":"Cedar evaluation: explicit forbid or default deny"}
+AgentGate Authorization Denied: policy_deny (an explicit policy denied this request)
 ```
-*(Notice: The response comes directly from the gateway. The target support-desk server was never contacted).*
+*(Notice: The response comes directly from the gateway. The target mcp-probe server was never contacted).*
 
 ### In the Admin Console UI:
 1. Go to **`https://localhost:8444/audit`**.
 2. Click the **Decision** dropdown filter and select **`DENY`**.
 3. Locate the latest event row:
    - **Decision:** Red badge displaying **`DENY`**.
-   - **Tool:** `support-desk-mcp/delete_ticket`.
+   - **Tool:** `mcp-probe/delete_ticket`.
    - **Principal:** `agent-reader`.
 4. Click the row to expand the details:
    - **Risk Level:** `destructive`.
@@ -60,17 +61,16 @@ content-type: application/json
 
 ## 5. What Happened Behind the Scenes?
 1. The gateway received the `delete_ticket` call from `agent-reader`.
-2. AgentGate looked up `delete_ticket` in the Tool Catalog and found `risk_level: destructive`.
-3. Cedar evaluated the active policy (`v1.0.0`). The policy states:
+2. AgentGate looked up `delete_ticket` in the Tool Catalog and found `risk: destructive`.
+3. Cedar evaluated the active policy (`v1.0.0`). Here is the real policy text (`agentgate/internal/fixturepolicy/fixturepolicy.go`), not a paraphrase:
    ```cedar
-   // Destructive tools require support-admin or support-lead roles
    forbid(
-       principal,
-       action in [Action::"execute"],
-       resource in RiskLevel::"destructive"
-   ) unless {
-       principal in Role::"support-admin"
+     principal,
+     action == AgentGate::Action::"InvokeTool",
+     resource
+   ) when {
+     resource.risk == "destructive"
    };
    ```
-4. Because `agent-reader` only has the `support-reader` role, Cedar evaluated to **FORBID**.
+4. This explicit `forbid` applies to every role, with no exception — unlike the `permit` rules for `reader`/`admin`/`payer`, there is no role that is allowed a `destructive` tool. Cedar evaluated to **FORBID**.
 5. AgentGate denied the request immediately, logged the denial to the immutable PostgreSQL audit chain, and told the gateway to terminate the connection with `403 Forbidden`.
