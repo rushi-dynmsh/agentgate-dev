@@ -81,6 +81,18 @@ if (-not $keycloakReady) {
     Write-Error "Timeout waiting for Keycloak to become healthy."
 }
 
+# Keep the gateway's copy of Keycloak's signing keys current. A fresh Keycloak
+# (first start, or after -Down -Volumes) mints new keys; a stale file makes the
+# gateway reject every token with "unknown key".
+$jwksPath = "$secretsDir/keycloak-jwks.json"
+$freshJwks = ((curl.exe -k -s https://localhost:8443/realms/agentgate/protocol/openid-connect/certs) -join "`n").Trim()
+$currentJwks = if (Test-Path $jwksPath) { (Get-Content $jwksPath -Raw).Trim() } else { "" }
+if ($freshJwks.StartsWith('{"keys":[{') -and $freshJwks -ne $currentJwks) {
+    Write-Host "Refreshing gateway signing keys from Keycloak..."
+    [System.IO.File]::WriteAllText($jwksPath, $freshJwks + "`n", (New-Object System.Text.UTF8Encoding($false)))
+    Invoke-Native -FailMessage "Failed to restart the gateway" -Command { docker restart prod-agentgateway | Out-Null }
+}
+
 # Wait for AgentGate readyz
 Write-Host "Waiting for AgentGate..."
 $agReady = $false

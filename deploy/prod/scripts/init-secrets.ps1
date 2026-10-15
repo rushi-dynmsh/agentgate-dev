@@ -21,11 +21,11 @@ function Ensure-SecretFile($fileName, $generator) {
     if (-not (Test-Path $filePath)) {
         Write-Host "  Generating $fileName..." -ForegroundColor Yellow
         $value = & $generator
-        [System.IO.File]::WriteAllText($filePath, $value.Trim() + "`n", [System.Text.Encoding]::UTF8)
+        [System.IO.File]::WriteAllText($filePath, $value.Trim() + "`n", (New-Object System.Text.UTF8Encoding($false)))
     } else {
         Write-Host "  $fileName already exists, skipping." -ForegroundColor Gray
     }
-    return ([System.IO.File]::ReadAllText($filePath, [System.Text.Encoding]::UTF8)).Trim()
+    return ([System.IO.File]::ReadAllText($filePath, (New-Object System.Text.UTF8Encoding($false)))).Trim()
 }
 
 # 1. Random passwords and secrets
@@ -69,7 +69,7 @@ if (-not (Test-Path $serverKey) -or -not (Test-Path $serverCrt)) {
     docker run --rm -v "${secretsDir}:/sec" alpine/openssl req -new -key /sec/server.key -out /sec/server.csr -subj "/CN=AgentGate-Internal-Server/O=AgentGate" | Out-Null
 
     $sanExt = "authorityKeyIdentifier=keyid,issuer`nbasicConstraints=CA:FALSE`nkeyUsage=digitalSignature,keyEncipherment`nextendedKeyUsage=serverAuth`nsubjectAltName=DNS:agentgate,DNS:agentgateway,DNS:keycloak,DNS:admin-ui,DNS:localhost,IP:127.0.0.1`n"
-    [System.IO.File]::WriteAllText((Join-Path $secretsDir "server.ext"), $sanExt, [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path $secretsDir "server.ext"), $sanExt, (New-Object System.Text.UTF8Encoding($false)))
 
     docker run --rm -v "${secretsDir}:/sec" alpine/openssl x509 -req -in /sec/server.csr -CA /sec/ca.crt -CAkey /sec/ca.key -CAcreateserial -out /sec/server.crt -days 365 -sha256 -extfile /sec/server.ext | Out-Null
     Remove-Item (Join-Path $secretsDir "server.csr") -ErrorAction SilentlyContinue
@@ -98,7 +98,7 @@ if (-not (Test-Path $clientKey) -or -not (Test-Path $clientCrt)) {
     docker run --rm -v "${secretsDir}:/sec" alpine/openssl req -new -key /sec/client.key -out /sec/client.csr -subj "/CN=agentgateway-client/O=AgentGate" | Out-Null
 
     $clientExt = "authorityKeyIdentifier=keyid,issuer`nbasicConstraints=CA:FALSE`nkeyUsage=digitalSignature,keyEncipherment`nextendedKeyUsage=clientAuth`n"
-    [System.IO.File]::WriteAllText((Join-Path $secretsDir "client.ext"), $clientExt, [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path $secretsDir "client.ext"), $clientExt, (New-Object System.Text.UTF8Encoding($false)))
 
     docker run --rm -v "${secretsDir}:/sec" alpine/openssl x509 -req -in /sec/client.csr -CA /sec/ca.crt -CAkey /sec/ca.key -CAcreateserial -out /sec/client.crt -days 365 -sha256 -extfile /sec/client.ext | Out-Null
     Remove-Item (Join-Path $secretsDir "client.csr") -ErrorAction SilentlyContinue
@@ -111,7 +111,7 @@ if (-not (Test-Path $clientKey) -or -not (Test-Path $clientCrt)) {
 $jwksFile = Join-Path $secretsDir "keycloak-jwks.json"
 if (-not (Test-Path $jwksFile)) {
     Write-Host "  Creating bootstrap keycloak-jwks.json..." -ForegroundColor Yellow
-    [System.IO.File]::WriteAllText($jwksFile, '{"keys":[]}' + "`n", [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText($jwksFile, '{"keys":[]}' + "`n", (New-Object System.Text.UTF8Encoding($false)))
 }
 
 # 7. Ensure permissions: files readable by non-root containers (chmod 644)
@@ -143,7 +143,7 @@ if (-not (Test-Path $envFile)) {
         -replace 'change-me-admin-secret', $adminSecret `
         -replace 'change-me-ops-cli-secret', $opsCliSecret
 
-    [System.IO.File]::WriteAllText($envFile, $rendered, [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText($envFile, $rendered, (New-Object System.Text.UTF8Encoding($false)))
     Write-Host "  .env generated successfully." -ForegroundColor Green
 } else {
     Write-Host "  $envFile already exists, skipping." -ForegroundColor Gray
