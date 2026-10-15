@@ -1,16 +1,18 @@
 # AgentGate Management Demo Script
 
-**Estimated Duration:** ~14 minutes (about 12 without Step 2b)  
-**Target Audience:** Engineering Leadership, Security Architects, Management  
-**Presenter Goal:** Demonstrate that AgentGate operates as an uncompromising, real-time control plane in the only path between AI agents and organizational tools.
+**Estimated Duration:** ~15 minutes (the optional automatic-traffic part adds ~2)
+**Target Audience:** Engineering Leadership, Security Architects, Management
+**Presenter Goal:** Show that AgentGate is a real-time checkpoint in the only path between AI agents and tools, using a real MCP client that you drive by hand.
+
+How this demo works: **you** make each call from MCP Inspector (the official MCP testing tool) and each one is logged. You change the rules live from the admin console and call again, so the audience sees behaviour change. An automatic traffic client comes last, only to make the dashboard come alive.
 
 ---
 
 ## Pre-Flight Checklist (the night before, and again 5 minutes before)
 
 All setup lives in one place: **[`docs/DEMO_START_TO_FINISH.md`](./DEMO_START_TO_FINISH.md)**. Do its Parts 1 to 3 (one-time setup, start everything, health check), then confirm:
-- [ ] The health check in Part 3 passes (seven containers up, then `200`, `401`, `200`).
-- [ ] You are logged in to the admin console (`https://localhost:8444`) in Tab 2, and the documentation site is open in Tab 1 (`http://localhost:3000`).
+- [ ] The health check passes (seven containers up, then `200`, `401`, `200`).
+- [ ] You are logged in to the admin console (`https://localhost:8444`), and the documentation site is open (`http://localhost:3000`).
 - [ ] You have run MCP Inspector once on this machine, so `npx` has downloaded it (it needs internet the first time).
 - [ ] The fallback video opens: `website/static/media/walkthrough.webm`.
 - [ ] **You have run this whole script once, start to finish, before the real thing.** That is the only way to catch anything specific to your machine.
@@ -20,120 +22,90 @@ All setup lives in one place: **[`docs/DEMO_START_TO_FINISH.md`](./DEMO_START_TO
 ## Demo Timeline & Steps
 
 ### Step 0: Context & The Problem (00:00 – 01:30)
-- **Talking Point:** "AI agents are taking autonomous actions in production, but without a dedicated control plane, organizations risk tool abuse, schema injection, and untracked lateral movement. AgentGate is the deterministic checkpoint in the only path between an agent and its tools."
-- **Action:** Introduce the architecture diagram (`brand/diagrams/system-flow.svg`).
-- **Expected Result:** Clear alignment on the gateway position: agents can only reach tools through AgentGate.
-- **Fallback:** Use the static architecture diagram on the live site at `http://localhost:3000/docs/concepts` (source file: `website/docs/concepts.md`).
+- **Talking Point:** "AI agents now take real actions in production, but nothing checks what each individual tool call is asking for. AgentGate is the checkpoint in the only path between an agent and its tools."
+- **Action:** Show the architecture diagram (`brand/diagrams/system-flow.svg`).
+- **Expected Result:** Everyone sees that agents reach tools only through AgentGate.
+- **Fallback:** The diagram on the live site at `http://localhost:3000/docs/concepts`.
 
 ---
 
-### Step 1: Landing Page & Attack Scenarios Player (01:30 – 03:30)
-- **Talking Point:** "Let's observe how AgentGate inspects requests in flight and defends against real-world attack vectors."
+### Step 1: The Landing Page & Attack Player (01:30 – 03:00)
+- **Talking Point:** "First, how AgentGate treats real attacks."
 - **Action:**
-  1. Scroll to the **Request Flow Animation**. Highlight the deterministic split: valid requests receive signed JWTs and proceed; rogue requests are intercepted and denied with zero backend reach.
-  2. Scroll to the **See It In Action: Attack Scenarios Player**.
-  3. Click and play **Scenario 1: Schema Drift Injection** (argument payload violates registered schema).
-  4. Click and play **Scenario 2: Privilege Escalation Attempt** (reader agent attempting a destructive customer drop tool).
-- **Expected Result:** The stepper shows red denial indicators with Cedar policy reasoning for both attacks.
-- **Fallback:** Step manually through the scenario stepper controls using the Next button.
+  1. On `http://localhost:3000`, show the animated request flow at the top: allowed requests pass, rogue ones are stopped.
+  2. Scroll to **Watch attacks get stopped** and play two scenarios, for example **Unauthenticated Request** and **Unknown Tool Access**. Use **Next** to step through.
+- **Expected Result:** Each scenario ends with a red **BLOCKED** verdict and the reason.
+- **Fallback:** Step through manually with the **Next** button.
 
 ---
 
-### Step 2: Live Console Dashboard (03:30 – 05:00)
-- **Talking Point:** "Here is the production admin console with live agent traffic streaming through the gateway right now."
+### Step 2: A Real Client, Allowed and Blocked (03:00 – 06:30)
+Exact steps and inputs: [`docs/DEMO_START_TO_FINISH.md`](./DEMO_START_TO_FINISH.md) Part 4.0 to 4.2, and [`docs/demo-scenarios/01-real-client-inspector.md`](./demo-scenarios/01-real-client-inspector.md).
+- **Talking Point:** "This is MCP Inspector, the tool the MCP community uses to test servers. To it, the gateway is just an MCP server. I'll make the calls myself."
 - **Action:**
-  1. Switch to Tab 2: `https://localhost:8444/`.
-  2. Point out the live traffic counters: total requests, allowed rate, denied rate, and active tools.
-- **Expected Result:** Dashboard cards reflect live traffic generated by the background `demo-agent`.
-- **Fallback:** Switch to the Walkthrough video tab or screenshot preview in the landing page console section.
+  1. Stop the background traffic: `docker stop prod-demo-agent`. Open the admin console's **Audit log** in a second tab.
+  2. Run the token and Inspector command from Part 4.0 (the token lasts 5 minutes, so do this right before).
+  3. In Inspector: **Tools**, run `list_tickets` (no input). Three tickets come back. Refresh the Audit tab: one **ALLOW** row.
+  4. Run `delete_ticket` with `ticket_id` = `TCK-1001`. A JSON-RPC error comes back (`policy_deny`). Refresh the Audit tab: one **DENY** row.
+- **Expected Result:** Tickets for the read, an error for the destructive call, and two matching audit rows (principal `agent-reader`).
+- **Fallback:** Scenario 1, Step 6 gives the same calls as plain `curl`. If both fail, say so and go to Step 3; later steps need the console but not Inspector.
 
 ---
 
-### Step 2b: Prove it with a real MCP client (+2 minutes, no fixed timestamp)
-Full script and commands: [`docs/demo-scenarios/01-real-client-inspector.md`](./demo-scenarios/01-real-client-inspector.md).
-- **Talking Point:** "The dashboard shows traffic from our own test agent. Now the official MCP Inspector, the tool the MCP community uses to test servers, connects to our gateway like any real AI agent. An allowed call goes through. A forbidden one is blocked with a clear reason."
-- **Action:** First pause the background traffic with `docker stop prod-demo-agent` (so only your calls appear in the audit log). Run the command from the scenario's Step 1 (fetch the token right before; it lasts 5 minutes). In Inspector: open the Tools tab, run `list_tickets` with no input (works), then run `delete_ticket` with `ticket_id` = `TCK-1001` (blocked, with a clear JSON-RPC error). Exact form inputs are in the scenario. Keep the admin console's Audit page ready for Step 3, where these two calls show up as fresh ALLOW and DENY rows. After Step 3, restart the traffic with `docker start prod-demo-agent`.
-- **Expected Result:** Three tools listed, tickets returned for the allowed call, a `policy_deny` error for the forbidden call.
-- **Fallback:** The scenario's Step 6 gives the same calls as plain `curl` commands that need no Node or internet. If both fail, say it plainly and move on to Step 3; nothing later depends on this step.
-
----
-
-### Step 3: Audit Trail & Real-Time Decision Filtering (05:00 – 07:00)
-- **Talking Point:** "Every single invocation decision—whether allowed or denied—is written to an immutable, cryptographically chained audit log."
+### Step 3: Change a Tool's Risk Level, Live (06:30 – 08:00)
+Exact steps: [`docs/demo-scenarios/02-live-tool-reclassification.md`](./demo-scenarios/02-live-tool-reclassification.md).
+- **Talking Point:** "A security team can change how risky a tool is, and the very next call is judged by the new rule, with no restart."
 - **Action:**
-  1. Click **Audit Log** in the navigation (`/audit`).
-  2. In the **Decision** dropdown, filter by `DENY`.
-  3. Expand a denied row to show the evaluation context: principal agent, requested tool, evaluated Cedar policy version, and rejection reason.
-  4. Switch filter back to `All` to show interleaved live events.
-- **Expected Result:** Instant reactive filtering without page reload. Denied events show a reason code such as `policy_deny` or `unknown_tool` (verified live on 2026-10-14; the gateway returns it as an `x-agentgate-reason` response header and as `error.data.reason` in a standard JSON-RPC error body, if anyone asks to see the raw HTTP response).
-- **Fallback:** View the recorded audit page sequence in `walkthrough.webm`.
+  1. In the console, **Tools & resources**: edit `list_tickets`, set Risk level to `write`, Save.
+  2. In Inspector, run `list_tickets` again: it is now **blocked** (a reader may only use `read` tools).
+  3. Edit `list_tickets` back to `read`, Save, run it again: allowed.
+- **Expected Result:** Tickets, error, tickets, with nothing restarted. The Audit page shows the middle call as a DENY with risk level `write`.
+- **Fallback:** The scenario's Step 6 does the same through the Admin API.
 
 ---
 
-### Step 4: Live Tool Reclassification (07:00 – 08:30)
-Full script with exact commands: [`docs/demo-scenarios/02-live-tool-reclassification.md`](./demo-scenarios/02-live-tool-reclassification.md).
-- **Talking Point:** "Security administrators can adjust tool risk classifications instantly without restarting backend microservices."
+### Step 4: Policy Lifecycle: Dry-Run, Activate & Rollback (08:00 – 11:00)
+Exact steps: [`docs/demo-scenarios/03-policy-dryrun-and-rollback.md`](./demo-scenarios/03-policy-dryrun-and-rollback.md).
+- **Talking Point:** "AgentGate treats policy like code: drafted, tested, activated with a reason, and instantly reversible."
 - **Action:**
-  1. (Optional, first) Call `update_ticket_status` as the `agent-admin` identity, from a terminal or from Inspector — it succeeds, since admin is allowed write today. Exact commands are in the linked scenario doc.
-  2. Click **Tools & resources** in the navigation (`/tools`).
-  3. Locate the `mcp-probe/update_ticket_status` tool.
-  4. Click **Edit**. Change the risk classification to `destructive`.
-  5. Tick the confirmation: *"I understand this changes authorization for all agents"*.
-  6. Click **Save**.
-  7. Repeat the same terminal call from step 1 (or just narrate it) — it is now denied, because no role is allowed `destructive` tools.
-  8. Return to **Audit Log** (`/audit`) to show the new DENY row.
-- **Expected Result:** The tool updates in place; the exact same call that worked a moment ago is now blocked.
-- **Fallback — verified working on 2026-10-14 against a freshly reset stack:**
-  ```powershell
-  $opsPass = (Get-Content deploy\prod\secrets\ops_cli_client_secret).Trim()
-  $tokenResp = curl.exe -k -s -X POST https://localhost:8443/realms/agentgate/protocol/openid-connect/token -d "grant_type=client_credentials&client_id=agentgate-ops-cli&client_secret=$opsPass"
-  $adminToken = ($tokenResp | ConvertFrom-Json).access_token
-  curl.exe -k -s -X PUT https://localhost:9443/api/v1/tools/mcp-probe/update_ticket_status -H "Authorization: Bearer $adminToken" -H "Content-Type: application/json" -d '{\"risk\":\"destructive\",\"schema\":{\"type\":\"object\",\"properties\":{\"ticket_id\":{\"type\":\"string\"},\"new_status\":{\"type\":\"string\"}}},\"arguments\":[{\"name\":\"ticket_id\",\"type\":\"string\",\"required\":true},{\"name\":\"new_status\",\"type\":\"string\",\"required\":true}],\"description\":\"\"}'
-  ```
-  This is a full replace, not a partial patch — the field is `risk` (not `risk_level`), and the request must repeat the tool's existing schema/arguments or the API rejects it. **Do not build this JSON body from a PowerShell variable/hashtable and pass it as `-d $variable`** — that silently mangles it and curl reports a misleading "malformed request body". Use the literal, hand-escaped string exactly as shown (this is the same style every other command in this document already uses).
+  1. **Policies**, **Create candidate**. Description `Demo: block reader reads`. On **Rule 1** (Reader) change **Decision** to **Deny**. **Validate policy**, **Save candidate**. You never type policy syntax; the generated Cedar is shown read-only.
+  2. The dry run opens. **Say exactly what it does:** it replays the candidate against 5 fixed sample requests, not live history, and shows which would flip. The `agent-reader` read row flips from ALLOW to DENY.
+  3. **Proceed to activation**, enter a reason, tick the confirmation, **Activate policy**.
+  4. In Inspector, run `list_tickets`: **blocked**, because the new policy is live.
+  5. **Policies**, `v1.0.0`, **Rollback to this**, **Rollback**. Run `list_tickets`: allowed again.
+- **Expected Result:** The agent's behaviour changes the moment the policy does, and returns on rollback.
+- **Fallback:** Explain the lifecycle from `http://localhost:3000/docs/policies`.
 
 ---
 
-### Step 5: Policy Lifecycle: Dry-Run, Activate & Rollback (08:30 – 10:30)
-Full script: [`docs/demo-scenarios/03-policy-dryrun-and-rollback.md`](./demo-scenarios/03-policy-dryrun-and-rollback.md).
-- **Talking Point:** "AgentGate treats security policies like code: versioned, staged, dry-run tested, and instantly rollbackable."
+### Step 5: The Evidence: Audit Trail & Tamper Check (11:00 – 13:00)
+- **Talking Point:** "Every decision, allowed or denied, is written to a cryptographically chained log. You've just watched every call we made appear in it."
 - **Action:**
-  1. Navigate to **Policies** (`/policies`). View active version `v1.0.0`.
-  2. Click **Create candidate**. This opens a no-code rule builder (role, allow/deny, which risk levels) — you never type policy syntax by hand; it's generated for you and shown read-only below the form.
-  3. Find the **Admin** rule row. Under "Tool risk", **uncheck `write`**, leaving only `read` checked. This proposes a read-only lockdown for admins (e.g. for a weekend maintenance window).
-  4. Click **Validate policy**, then **Save**.
-  5. Click **Run dry run**. **Say exactly what this does — don't overstate it:** it replays the candidate against 5 fixed, representative sample requests (a reader and an admin each trying a read, a write, and a destructive action), not live historical traffic, and shows which of those 5 would flip from ALLOW to DENY. Expect the admin-write sample to flip to DENY — that's the lockdown working.
-  6. (Optional) Click **Activate policy**, then immediately click **Rollback** to show instant, one-click recovery back to `v1.0.0`.
-- **Expected Result:** The candidate is created without writing any Cedar by hand; the dry run clearly shows 1 of 5 sample decisions changing.
-- **Fallback:** Explain the policy staging lifecycle using the live docs at `http://localhost:3000/docs/policies`.
+  1. **Audit log**: filter **Decision** to `DENY`. Expand a row: principal, tool, risk level, policy version, reason.
+  2. Switch the filter back to `All` to show the full sequence: ALLOW, DENY, the risk change, the policy change.
+  3. In a terminal: `docker exec prod-agentgate /bin/agentgate verify-audit -workspace default`
+- **Expected Result:** Instant filtering, and `OK <N> records` (the number grows through the demo; its exact value doesn't matter).
+- **Fallback:** Expand any row and show the **Audit Chain** panel.
 
 ---
 
-### Step 6: Cryptographic Verification in Terminal (10:30 – 11:30)
-- **Talking Point:** "Audit logs aren't just database rows—they form a SHA-256 hash chain that can be independently verified for tampering."
+### Step 6 (optional): The Automatic Client & Live Dashboard (13:00 – 15:00)
+- **Talking Point:** "Real deployments are not one person clicking. Here is an automated agent sending a steady stream of mixed requests."
 - **Action:**
-  1. Switch to a terminal window.
-  2. Run the audit verification tool:
-     ```powershell
-     docker exec prod-agentgate /bin/agentgate verify-audit -workspace default
-     ```
-- **Expected Result:** Output displays:
-  ```text
-  OK <N> records
-  ```
-  where `<N>` is however many events have happened so far (it grows through the demo — don't worry about the exact number).
-  *(Confirms all cryptographic hash chain links are valid with zero tampering detected)*
-- **Fallback:** Show the audit page's "Audit Chain" detail panel instead — open `http://localhost:8444/audit`, expand any row.
+  1. `docker start prod-demo-agent`
+  2. Open the **Dashboard**: the allowed and denied counters and the per-hour chart fill up (it takes a minute); the Audit page streams new rows.
+- **Expected Result:** Live counters, a visible deny rate, and top denied reasons (`policy_deny`, `unknown_tool`).
+- **Fallback:** The dashboard and walkthrough video are on the landing page's **Production Admin Console** section.
 
 ---
 
-### Step 7: Summary & What's Next (11:30 – 12:00)
+### Step 7: Summary & What's Next (15:00)
 - **Talking Point:**
-  - "AgentGate delivers complete defense-in-depth: zero-trust identity, strict schema enforcement, Cedar authorization, and cryptographic auditability."
+  - "Zero-trust identity, per-call authorization, short-lived credentials, and a tamper-evident audit trail, working with a real MCP client."
   - "Current milestone: v1.0.0-rc feature complete."
-  - "Next on the roadmap: Multi-region synchronization, distributed consensus on policy state, and expanded MCP server adapters."
-- **Action:** Conclude presentation, open floor for questions.
-- **Post-Demo Clean-up:**
+  - "Next: connecting third-party MCP servers with per-backend credential settings, and registering a server by URL with automatic tool discovery."
+- **Honest limits if asked:** the demo's tool server is our own; the tool catalog is entered by hand today; the tool list shows every tool, but forbidden ones are blocked when called.
+- **Post-demo clean-up:**
   ```powershell
   .\deploy\prod\scripts\demo-mode.ps1 -Reset
   ```

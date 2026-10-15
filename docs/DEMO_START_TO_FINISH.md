@@ -59,42 +59,87 @@ curl.exe -k -s -o NUL -w "admin console: %{http_code}`n" https://localhost:8444/
 curl.exe -k -s -o NUL -w "gateway (no token, expect 401): %{http_code}`n" https://localhost:3443/mcp
 curl.exe -s -o NUL -w "docs site: %{http_code}`n" http://localhost:3000/
 ```
-Expected: seven `prod-…` containers `Up` (`prod-keycloak` and `prod-agentgate` say `healthy`), then `200`, `401`, `200`. The gateway answering 401 is correct: it means it is up and refusing callers with no token.
+Expected: seven `prod-…` containers `Up` (before you stop the traffic client in Part 4) (`prod-keycloak` and `prod-agentgate` say `healthy`), then `200`, `401`, `200`. The gateway answering 401 is correct: it means it is up and refusing callers with no token.
 
 Also log in to the admin console once now: open `https://localhost:8444`, accept the certificate warning (Advanced, then Proceed), click **Sign in with SSO**, user `admin`, password from:
 ```powershell
 Get-Content deploy\prod\secrets\admin_initial_password
 ```
 
-## Part 4 — The demo, in order
+## Part 4 — The manual demo (MCP Inspector)
 
-1. **Admin console** (`https://localhost:8444`): show the Dashboard and the Audit page. The background demo agent creates live traffic.
-2. **Real MCP client** (this is the main proof). First pause the background traffic generator, so the Audit page shows only your own calls:
+You make every call yourself from MCP Inspector, and each one is logged. The background traffic generator is switched off for this part, so the Audit page shows only your calls. You also change the rules live from the admin console and call again, which replaces the old command-by-command scenarios.
+
+**4.0 Prepare (2 minutes)**
+
+1. Switch off the background traffic generator:
    ```powershell
    docker stop prod-demo-agent
    ```
-   Then, in a PowerShell window (the token lasts **5 minutes**, so run it right before you show it):
+2. Open the admin console (`https://localhost:8444`), log in, and keep two tabs ready: **Audit log** (`/audit`) and **Tools & resources** (`/tools`). The Audit page is nearly empty, which is what you want.
+3. Start Inspector as the **reader** agent. The token lasts 5 minutes, so run this right before you start and re-run it whenever Inspector shows a 401:
    ```powershell
-   $agentSecret = (Get-Content deploy\prod\secrets\agent_reader_secret).Trim()
+   $agentSecret = (Get-Content deployprodsecretsagent_reader_secret).Trim()
    $tokenResp = curl.exe -k -s -X POST https://localhost:8443/realms/agentgate/protocol/openid-connect/token -H "Content-Type: application/x-www-form-urlencoded" -d "grant_type=client_credentials&client_id=agent-reader&client_secret=$agentSecret"
    $agentToken = ($tokenResp | ConvertFrom-Json).access_token
    Write-Host "token length: $($agentToken.Length) (must be about 1100, not 0)"
    $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
    npx @modelcontextprotocol/inspector --server-url https://localhost:3443/mcp --transport http --protocol-era modern --header "Authorization: Bearer $agentToken"
    ```
-   In the browser tab that opens: confirm the green **Connected**, click **Tools** (three tools listed on the left). Click `list_tickets`, leave the optional `status_filter` empty, click **Execute Tool** (works: three tickets). Then click `delete_ticket`, type `TCK-1001` in `ticket_id`, click **Execute Tool** (blocked with a JSON-RPC error). Required fields are marked `*`, and the button stays grey until they are filled. Do **not** restart the traffic generator yet. Then go to the admin console's Audit page and point at the matching ALLOW and DENY rows. Details and the command-line fallback: `docs/demo-scenarios/01-real-client-inspector.md`.
-3. **Show your calls in the audit trail:** open the Audit page and point at your ALLOW and DENY rows (they are the only recent ones). Then restart the traffic generator: `docker start prod-demo-agent`.
-4. **Change a rule live:** `docs/DEMO_SCRIPT.md` Step 4 (reclassify a tool) and Step 5 (policy dry-run and rollback).
-5. **Prove the log can't be tampered with:** `docker exec prod-agentgate /bin/agentgate verify-audit -workspace default` prints `OK <N> records`.
+4. In the Inspector tab, confirm the green **Connected**, then click **Tools**. The left list reads **Tools (3)**.
 
-## Part 5 — Between rehearsals, and shutting down
+**How to run a tool in Inspector:** click the tool in the left list, fill in the boxes in the middle panel, click **Execute Tool**. Fields marked `*` are required and the button stays grey until they are filled. The right-hand **Messages** panel shows the request and the response.
 
-- **Back to a clean state** (restores tickets, tool risk levels and the active policy):
+| Tool | What to enter |
+|---|---|
+| `list_tickets` | Nothing (`status_filter` is optional) |
+| `delete_ticket` | `ticket_id` = `TCK-1001` |
+| `update_ticket_status` | `ticket_id` = `TCK-1002`, `new_status` = `resolved` (needs the admin token, see 4.6) |
+
+**4.1 An allowed call.** Run `list_tickets`. You get three tickets. In the Audit tab, refresh: one **ALLOW** row, tool `mcp-probe/list_tickets`, principal `agent-reader`.
+
+**4.2 A blocked call.** Run `delete_ticket` with `TCK-1001`. Inspector shows a JSON-RPC error with reason `policy_deny`, and the ticket is not deleted. Audit tab: one **DENY** row, risk level `destructive`.
+
+**4.3 Change a tool's risk level, live.** Scenario: `docs/demo-scenarios/02-live-tool-reclassification.md`.
+1. In the admin console **Tools & resources**, edit `list_tickets`: set Risk level to `write`, Save.
+2. Back in Inspector, run `list_tickets` again. It is now **blocked**: a reader may only use `read` tools. Nothing was restarted.
+3. Edit `list_tickets` back to `read`, Save, and run it once more: allowed again.
+
+**4.4 Change the policy, with a safety net.** Scenario: `docs/demo-scenarios/03-policy-dryrun-and-rollback.md`.
+1. **Policies**, **Create candidate**. Description: `Demo: block reader reads`. On **Rule 1** (Reader), change **Decision** to **Deny**. **Validate policy**, then **Save candidate**.
+2. The dry run opens. It replays 5 fixed sample requests and shows which would change. The `agent-reader` read row flips from ALLOW to DENY.
+3. **Proceed to activation**, enter a reason, tick the confirmation, **Activate policy**.
+4. In Inspector, run `list_tickets`: **blocked**, because the new policy is live.
+5. **Policies**, find `v1.0.0`, **Rollback to this**, **Rollback**. Run `list_tickets` again: allowed.
+
+**4.5 Show the evidence.** Audit tab: filter **Decision** to `DENY` and expand a row (principal, tool, risk, policy version, reason). Then prove the log is intact:
+```powershell
+docker exec prod-agentgate /bin/agentgate verify-audit -workspace default
+```
+It prints `OK <N> records`.
+
+**4.6 Optional: a more privileged agent.** Stop Inspector (Ctrl+C), repeat step 3 of 4.0 with `agent_admin_secret` and `client_id=agent-admin`. Now `update_ticket_status` (`TCK-1002`, `resolved`) is allowed, and `delete_ticket` is still denied.
+
+The full explanation of each call (what AgentGate checked and why) is in `docs/demo-scenarios/01-real-client-inspector.md`; the talking points are in `docs/DEMO_SCRIPT.md`.
+
+## Part 5 — Optional: the automatic traffic client
+
+The `demo-agent` container is a script that keeps calling the gateway as `agent-reader` and `agent-admin` (allowed reads and writes plus some forbidden calls), about once a second. It makes the dashboard come alive, so use it after the manual demo.
+
+```powershell
+docker start prod-demo-agent
+```
+
+Open the **Dashboard**: the decision counters and the per-hour chart fill up, and the Audit page streams new rows. Stop it again with `docker stop prod-demo-agent`. Its admin calls change ticket data, so use `-Reset` (below) to restore it.
+
+## Part 6 — Between rehearsals, and shutting down
+
+- **Back to a clean state** (restores tickets, tool risk levels and the active policy; it also restarts the traffic client, so run `docker stop prod-demo-agent` again before a manual demo):
   ```powershell
-  .\deploy\prod\scripts\demo-mode.ps1 -Reset
+  .deployprodscriptsdemo-mode.ps1 -Reset
   ```
-- **Stop everything, keep data:** `.\deploy\prod\scripts\demo-mode.ps1 -Down`
-- **Stop and wipe all data:** `.\deploy\prod\scripts\demo-mode.ps1 -Down -Volumes` (the next start takes the slow path again).
+- **Stop everything, keep data:** `.deployprodscriptsdemo-mode.ps1 -Down`
+- **Stop and wipe all data:** `.deployprodscriptsdemo-mode.ps1 -Down -Volumes` (the next start takes the slow path again).
 - Close the documentation-site window (`Ctrl+C`).
 
 ## If something goes wrong

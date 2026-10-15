@@ -1,88 +1,58 @@
 # Scenario 2: Live Tool Risk Reclassification (Dynamic Governance)
 
 ## 1. What This Proves (What to Say)
-> "In traditional architectures, changing an API endpoint's security classification requires editing code, changing config maps, and redeploying or restarting microservices. With AgentGate, security teams can reclassify tool risk in real time through the console. Changes take effect on the very next incoming packet without interrupting running services."
+> "In traditional setups, changing how risky an API call is means editing code or config and redeploying. With AgentGate, a security team changes a tool's risk level in the console, and the very next call from the agent is judged by the new rule. Nothing restarts."
 
 ---
 
 ## 2. Pre-Conditions
-- Admin Console is open at `https://localhost:8444/tools`.
-- Stack is running.
+- The stack is running, and you did the preparation in `docs/DEMO_START_TO_FINISH.md` Part 4.0: traffic generator stopped, Inspector connected as the **reader** agent, the admin console open on **Tools & resources** (`https://localhost:8444/tools`).
+- Nothing else is needed. The whole scenario uses the reader token from Scenario 1.
 
 ---
 
 ## 3. Step-by-Step Execution
 
-**Why this scenario uses `update_ticket_status` and the `agent-admin` identity:** under the baseline policy, `update_ticket_status` is a `write` tool. A reader is never allowed `write`, so a reader's call would be denied before you change anything and the demo would show no difference. An admin is allowed `read` and `write` but never `destructive`, so reclassifying the tool to `destructive` flips the **same call** from allowed to denied, which is what makes the before and after visible. You can make the calls from the command line (below) or from Inspector as `agent-admin` (see Scenario 1, "Optional: the admin agent").
+**Why this works with a reader:** the baseline policy lets a reader use only `read` tools. `list_tickets` is classified `read`, so it works today. If we reclassify the same tool to `write`, the very same call is no longer something a reader may do. One tool, one agent, a before and an after.
 
-### Step 1: Observe the Initial State (Allowed Call)
-In terminal, call `update_ticket_status` as `agent-admin`. Under the baseline policy it is classified `write`, which admin is allowed:
+### Step 1: The call works today
+In Inspector, click `list_tickets` and **Execute Tool** (no input). You get the three tickets.
 
-```powershell
-$agentSecret = (Get-Content deploy/prod/secrets/agent_admin_secret).Trim()
-$tokenResp = curl.exe -k -s -X POST https://localhost:8443/realms/agentgate/protocol/openid-connect/token `
-    -H "Content-Type: application/x-www-form-urlencoded" `
-    -d "grant_type=client_credentials&client_id=agent-admin&client_secret=$agentSecret"
-$agentToken = ($tokenResp | ConvertFrom-Json).access_token
+### Step 2: Reclassify the tool in the console
+1. In the admin console, open **Tools & resources** (`/tools`).
+2. Find `list_tickets` under `mcp-probe` (risk level `read`) and click **Edit**.
+3. Change **Risk level** to **`write`** and click **Save**.
+   (Moving a tool to `destructive` also asks you to tick *"I understand this changes authorization for all agents"*; `write` does not.)
+4. The table shows `list_tickets` with the new `write` level.
 
-$payload = '{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"update_ticket_status\",\"arguments\":{\"ticket_id\":\"TCK-1002\",\"new_status\":\"resolved\"}}}'
-curl.exe -k -s -i -X POST https://localhost:3443/mcp `
-    -H "Authorization: Bearer $agentToken" `
-    -H "Content-Type: application/json" `
-    -d $payload
+### Step 3: The same call is now blocked
+Back in Inspector, click **Execute Tool** on `list_tickets` again. You get a JSON-RPC error instead of tickets:
+
+```json
+{"jsonrpc":"2.0","id":3,"error":{"code":-40301,"data":{"execution_id":"exec-…","reason":"policy_deny"},"message":"AgentGate Authorization Denied: policy_deny (an explicit policy denied this request)"}}
 ```
-*(Expected: `200 OK` — admin is allowed both read and write tools under the baseline policy.)*
 
----
-
-### Step 2: Reclassify the Tool Live in the UI
-Now switch to your browser:
-1. Go to **`https://localhost:8444/tools`** (Tools & Resources).
-2. Look at the `mcp-probe` section.
-3. Locate the tool named **`update_ticket_status`**.
-4. Click the **Edit** button next to it.
-5. In the dialog:
-   - Change the **Risk level** dropdown to **`destructive`**.
-   - Check the confirmation box: **"I understand this changes authorization for all agents"** (only appears because you're moving *to* destructive).
-   - Click **Save**.
-6. The table refreshes immediately showing `update_ticket_status` with a red **`destructive`** badge.
-
----
-
-### Step 3: Trigger the Tool Call Again (Immediate Denial)
-Return to your PowerShell terminal and run the exact same command from Step 1 again (reuse the `$payload` and `$agentToken` variables already in your session):
-
-```powershell
-curl.exe -k -s -i -X POST https://localhost:3443/mcp `
-    -H "Authorization: Bearer $agentToken" `
-    -H "Content-Type: application/json" `
-    -d $payload
-```
+### Step 4: Put it back
+Edit `list_tickets` back to **`read`**, Save, and run it in Inspector once more. It works again.
 
 ---
 
 ## 4. What to Look For (Expected Result)
-
-### In the Terminal:
-Instead of `200 OK`, you now immediately receive (same verified response shape as the blocked call in Scenario 1):
-```http
-HTTP/1.1 403 Forbidden
-x-agentgate-decision: deny
-x-agentgate-reason: policy_deny
-content-type: application/json
-
-{"jsonrpc":"2.0","id":3,"error":{"code":-40301,"data":{"execution_id":"exec-…","reason":"policy_deny"},"message":"AgentGate Authorization Denied: policy_deny (an explicit policy denied this request)"}}
-```
-
-### In the Admin Console UI:
-1. Navigate to **Audit** (`https://localhost:8444/audit`).
-2. The latest event shows:
-   - **Decision:** **`DENY`**.
-   - **Tool:** `mcp-probe/update_ticket_status`.
-   - **Evaluated Risk Level:** **`destructive`**.
-3. **Point out to audience:** We did not restart the gateway, we did not redeploy the backend MCP container, and we did not touch any code. The control plane immediately enforced the new risk boundary.
+- **Inspector:** tickets, then an error, then tickets again, with no restart of anything in between.
+- **Audit page** (`/audit`): the middle call is a **`DENY`** row for `mcp-probe/list_tickets`, risk level `write`, reason `policy_deny`. The calls before and after are `ALLOW` rows with risk level `read`.
+- **Say:** "We did not restart the gateway, redeploy the backend or touch any code."
 
 ---
 
-## 5. Clean-Up for Next Scenarios
-You can either leave it as destructive, or click **Edit** on `update_ticket_status` in `https://localhost:8444/tools` and restore its risk level back to `write`, or run `.\deploy\prod\scripts\demo-mode.ps1 -Reset` later (this also restores every other tool's bootstrap classification and reactivates policy `v1.0.0`).
+## 5. Clean-Up
+Make sure `list_tickets` is back to `read`. If you are unsure of the state, run `.\deploy\prod\scripts\demo-mode.ps1 -Reset` (it restores every tool's bootstrap level and re-activates policy `v1.0.0`; it also restarts the traffic generator, so `docker stop prod-demo-agent` again if you are continuing a manual demo).
+
+## 6. Fallback without the console
+The same change through the Admin API (the field is `risk`; the request replaces the whole tool record, so it repeats the schema):
+```powershell
+$opsPass = (Get-Content deploy\prod\secrets\ops_cli_client_secret).Trim()
+$tokenResp = curl.exe -k -s -X POST https://localhost:8443/realms/agentgate/protocol/openid-connect/token -d "grant_type=client_credentials&client_id=agentgate-ops-cli&client_secret=$opsPass"
+$adminToken = ($tokenResp | ConvertFrom-Json).access_token
+curl.exe -k -s -X PUT https://localhost:9443/api/v1/tools/mcp-probe/list_tickets -H "Authorization: Bearer $adminToken" -H "Content-Type: application/json" -d '{\"risk\":\"write\",\"schema\":{\"type\":\"object\",\"properties\":{\"status_filter\":{\"type\":\"string\"}}},\"arguments\":[{\"name\":\"status_filter\",\"type\":\"string\",\"required\":false}],\"description\":\"\"}'
+```
+Use the literal string exactly as shown; building the JSON from a PowerShell variable makes curl report a misleading "malformed request body". To undo, send the same command with `\"risk\":\"read\"`.

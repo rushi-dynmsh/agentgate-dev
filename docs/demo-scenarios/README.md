@@ -44,7 +44,7 @@ For what to *say*, use [`docs/DEMO_SCRIPT.md`](../DEMO_SCRIPT.md). The scenarios
 
 ## The 5 Demo Scenarios
 
-Run them in order or jump to any one:
+Scenarios 1 to 3 are driven by hand from MCP Inspector plus the admin console, and each call is logged. Run them in order or jump to any one. The automatic traffic client (`prod-demo-agent`) is optional and is covered in `DEMO_START_TO_FINISH.md` Part 5.
 
 1. **[Scenario 1: A Real MCP Client (MCP Inspector) — Allowed, Blocked, Invented Tool](./01-real-client-inspector.md)**
    *The main proof. The official MCP Inspector tool connects to the gateway, lists tools, runs an allowed call, gets blocked on a forbidden one, and a made-up tool is refused. Includes a curl fallback.*
